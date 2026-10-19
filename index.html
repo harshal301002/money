@@ -107,6 +107,23 @@ button{cursor:pointer;border:0;background:none;padding:0}
 .months{display:flex;gap:8px;overflow-x:auto;padding-bottom:2px;margin-top:10px}
 .mchip{flex:none;min-width:76px;padding:10px;border-radius:14px;text-align:center;font-size:12px;font-weight:700}
 .mchip b{display:block;font-family:var(--display);font-size:15px;margin-top:2px}
+.balance{background:var(--accent);color:var(--accent-ink);border-radius:20px;padding:20px 18px}
+.balance .label{color:inherit;opacity:.8}
+.balance .big{font-family:var(--display);font-weight:700;font-size:48px;line-height:1;letter-spacing:-.03em;margin:8px 0 8px}
+.balance .row2{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:14px}
+.balance button{color:inherit;opacity:.85;font-weight:600;font-size:13px;text-decoration:underline;text-underline-offset:3px}
+.chart{position:relative;margin-top:8px}
+.chart svg{width:100%;height:auto;display:block;touch-action:pan-y}
+.chart .tip{position:absolute;top:4px;pointer-events:none;background:var(--ink);color:var(--bg);border-radius:10px;padding:8px 10px;font-size:12px;line-height:1.5;white-space:nowrap;transform:translateX(-50%)}
+.chart .tip b{font-weight:700}
+.chart .tip i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:5px}
+.mile{display:grid;grid-template-columns:1fr auto auto;gap:4px 14px;align-items:baseline;font-size:14px}
+.mile .h{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+.mile .v{font-variant-numeric:tabular-nums;text-align:right}
+.mile .m{font-family:var(--display);font-weight:700}
+.hist-row{display:grid;grid-template-columns:1fr 130px;gap:10px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)}
+.hist-row:last-child{border-bottom:0}
+.hist-row input{height:40px;border-radius:10px;border:1px solid var(--line);background:var(--surface);padding:0 10px;font-size:16px;text-align:right;min-width:0;width:100%}
 .split{display:flex;gap:2px;height:14px;border-radius:7px;overflow:hidden;background:var(--surface-2);margin:12px 0 10px}
 .split i{display:block;height:100%}
 .split i:first-child{border-radius:7px 0 0 7px}.split i:last-child{border-radius:0 7px 7px 0}.split i:only-child{border-radius:7px}
@@ -254,7 +271,7 @@ textarea{width:100%;min-height:120px;border-radius:12px;border:1px solid var(--l
     <button class="tab" data-tab="home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>Home</button>
     <button class="tab" data-tab="history"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg>History</button>
     <button class="addkey" data-action="add" aria-label="Add transaction"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
-    <button class="tab" data-tab="bills"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>Bills</button>
+    <button class="tab" data-tab="forecast"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l5-5 4 3 8-8"/><path d="M15 7h5v5"/></svg>Forecast</button>
     <button class="tab" data-tab="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg>Settings</button>
   </div>
 </nav>
@@ -327,7 +344,8 @@ function sample(){
     .map(([name,amount,freq,day,month])=>({id:uid(),name,amount,freq,day,month:month||1}));
   const cym=ymOf(iso(now));const pym=shiftYM(cym,-1);s.bills.forEach(b=>b.since=pym);
   s.tx.push({id:uid(),type:"expense",cat:"card",amount:212.4,date:iso(new Date(now.getFullYear(),now.getMonth(),Math.min(6,now.getDate()))),note:"Card purchases"});s.bills.forEach(b=>{if(b.name==="Rent"||b.name==="Seattle City Light"){b.varies=true;b.hist={[cym]:b.amount}}});
-  s.started=pym+"-01";
+  s.started=pym+"-01";Object.assign(s.settings,{jobStart:shiftYM(pym,-8),histMode:"monthly",histSet:true});
+  s.history={};for(let i=8;i>=1;i--)s.history[shiftYM(pym,-i)]=[3100,3600,2900,4200,3800,3400,4100,3700][8-i];
   return s;
 }
 
@@ -362,33 +380,44 @@ function summary(ym){
   const[y,m]=ym.split("-").map(Number);const days=ym===curYM()?new Date().getDate():daysIn(y,m-1);
   return{bills,billsSum,needCats,otherCats,needs,others,total:needs+others,days,everyday:ex.reduce((a,t)=>a+t.amount,0),count:ex.length};
 }
-/* Savings plan: pay - bills - savings target = what's left for day-to-day spending */
+/* Savings plan (monthly): pay - bills - savings goal = left to spend */
 let PC={};
 function billsMonthTotal(ym){const m=+ym.slice(5);return S.bills.filter(b=>(b.since||"0000-00")<=ym&&(b.freq==="monthly"||b.month===m)).reduce((a,b)=>a+billAmt(b,ym),0)}
 function plan(ym){if(PC[ym])return PC[ym];
-  const[y,m]=ym.split("-").map(Number),dim=daysIn(y,m-1),cur=curYM(),isCur=ym===cur,past=ym<cur;
-  const td=isCur?new Date().getDate():(past?dim:0);
+  const[y,m]=ym.split("-").map(Number),dim=daysIn(y,m-1),cur=curYM(),isCur=ym===cur;
+  const td=isCur?new Date().getDate():dim;
   const pay=monthlyIncome()+extraIn(ym),bills=billsMonthTotal(ym),target=+S.settings.target||0;
-  const spendable=pay-bills-target,base=spendable/dim;
-  const byDay=new Array(dim+1).fill(0);txIn(ym).forEach(t=>{if(t.type==="expense")byDay[+t.date.slice(8)]+=t.amount});
-  const spent=byDay.reduce((a,b)=>a+b,0);
-  let spentBefore=0;for(let d=1;d<td;d++)spentBefore+=byDay[d];
-  const daysLeft=isCur?dim-td+1:0;
-  const allowance=isCur?(spendable-spentBefore)/daysLeft:0;
-  const todayLeft=isCur?allowance-byDay[td]:0;
-  const projSpend=isCur?spent+(td?spent/td:0)*(dim-td):spent;
+  const spendable=pay-bills-target;
+  const spent=txIn(ym).filter(t=>t.type==="expense").reduce((a,t)=>a+t.amount,0);
+  const projSpend=isCur&&td?spent/td*dim:spent;
   const projSave=pay-bills-projSpend;
   const st=projSave>=target?"good":projSave>=target-400?"warn":"bad";
-  return PC[ym]={ym,dim,td,isCur,pay,bills,target,spendable,base,byDay,spent,allowance,todayLeft,daysLeft,projSave,status:st}}
-function dayStatus(p,d){if(p.isCur&&d>p.td)return"future";const a=p.byDay[d],b=Math.max(0,p.base);
-  if(a===0)return"zero";if(a<=b)return"ok";if(a<=b*1.5)return"warn";return"bad"}
-function streak(){const start=parseISO((S.started||today()).slice(0,10));const t=new Date();t.setHours(0,0,0,0);let n=0;
-  for(let i=1;i<500;i++){const d=new Date(t);d.setDate(t.getDate()-i);if(d<start)break;const p=plan(ymOf(iso(d)));
-    const s=dayStatus(p,d.getDate());if(s==="zero"||s==="ok")n++;else break}
-  return n}
-function pastMonths(){const out=[];const st=ymOf(S.started||today());let ym=shiftYM(curYM(),-1);
-  while(ym>=st&&out.length<12){const p=plan(ym);out.push({ym,saved:p.pay-p.bills-p.spent,hit:p.pay-p.bills-p.spent>=p.target});ym=shiftYM(ym,-1)}
+  return PC[ym]={ym,dim,td,isCur,pay,bills,target,spendable,spent,projSave,status:st}}
+
+/* Balance: savings before the app (one total or month by month) + every tracked month since */
+const startYM=()=>ymOf(S.started||today());
+const adjIn=ym=>(S.adjust||[]).filter(a=>a.ym===ym).reduce((x,a)=>x+a.amount,0);
+function monthNet(ym){
+  if(ym<startYM())return S.settings.histMode==="monthly"?(+(S.history||{})[ym]||0):0;
+  const p=plan(ym),bills=ym===curYM()?billsIn(ym).reduce((a,x)=>a+x.amt,0):p.bills;
+  return p.pay-bills-p.spent+adjIn(ym)}
+function firstYM(){const st=startYM(),js=S.settings.jobStart;return S.settings.histMode==="monthly"&&js&&js<st?js:st}
+function timeline(){if(PC.tl)return PC.tl;
+  let bal=S.settings.histMode==="monthly"?0:(+S.settings.openingTotal||0);const out=[{ym:shiftYM(firstYM(),-1),bal}];
+  for(let ym=firstYM();ym<=curYM();ym=shiftYM(ym,1)){bal+=monthNet(ym);out.push({ym,bal})}
+  return PC.tl=out}
+const balanceNow=()=>timeline().at(-1).bal;
+function pastMonths(){const out=[];let ym=shiftYM(curYM(),-1);const f=S.settings.histMode==="monthly"?firstYM():startYM();
+  while(ym>=f&&out.length<12){const v=monthNet(ym);if(ym>=startYM()||(S.history||{})[ym]!=null)out.push({ym,saved:v,hit:v>=(+S.settings.target||0)});ym=shiftYM(ym,-1)}
   return out.reverse()}
+function goalStreak(){const pm=pastMonths();let n=0;for(let i=pm.length-1;i>=0&&pm[i].hit;i--)n++;return n}
+
+/* Forecast */
+function avgMonthly(){const done=[];for(let ym=shiftYM(curYM(),-1);done.length<6;ym=shiftYM(ym,-1)){
+    if(ym<firstYM())break;if(ym<startYM()&&!(S.history||{})[ym]&&S.settings.histMode==="monthly")continue;if(ym<startYM()&&S.settings.histMode!=="monthly")break;done.push(monthNet(ym))}
+  return done.length?{v:done.reduce((a,b)=>a+b,0)/done.length,n:done.length}:{v:plan(curYM()).projSave,n:0}}
+function project(start,monthly,months){const r=(+S.settings.apy||0)/100/12;let b=start;const out=[];for(let i=0;i<months;i++){b=b*(1+r)+monthly;out.push(b)}return out}
+function monthsTo(start,monthly,goal){const r=(+S.settings.apy||0)/100/12;let b=start;for(let i=1;i<=600;i++){b=b*(1+r)+monthly;if(b>=goal)return i}return null}
 const daysUntil=d=>{const t=new Date();t.setHours(0,0,0,0);return Math.round((d-t)/864e5)};
 const dueText=d=>{const n=daysUntil(d);return n===0?"Today":n===1?"Tomorrow":n<7?d.toLocaleDateString("en-US",{weekday:"long"}):d.toLocaleDateString("en-US",{month:"short",day:"numeric"})};
 
@@ -402,8 +431,9 @@ const ICON={gear:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" str
 /* ---------- Render ---------- */
 function render(){PC={};
   document.querySelectorAll(".tab").forEach(b=>b.classList.toggle("on",b.dataset.tab===ui.tab));
-  const v={home:viewHome,history:viewHistory,bills:viewBills,settings:viewSettings}[ui.tab]();
-  $("#app").innerHTML=v;
+  const v=({home:viewHome,history:viewHistory,forecast:viewForecast,bills:viewBills,savings:viewSavings,settings:viewSettings}[ui.tab]||viewHome)();
+  $("#app").innerHTML=v;if(ui.tab==="forecast")bindChart();
+  const map={bills:"settings",savings:"settings"};document.querySelectorAll(".tab").forEach(b=>{if(map[ui.tab]===b.dataset.tab)b.classList.add("on")});
 }
 function topbar(title,right){return `<header class="topbar"><h1>${title}</h1>${right||""}</header>`}
 function txRow(t){
@@ -428,7 +458,6 @@ function splitHTML(sm,filterable){
 
 function ringSVG(pct,color){const r=50,c=2*Math.PI*r,v=Math.max(0,Math.min(1,pct));
   return `<svg viewBox="0 0 120 120" aria-hidden="true"><circle cx="60" cy="60" r="${r}" fill="none" stroke="var(--surface)" stroke-width="12"/><circle cx="60" cy="60" r="${r}" fill="none" stroke="${color}" stroke-width="12" stroke-linecap="round" stroke-dasharray="${(v*c).toFixed(1)} ${c.toFixed(1)}"/></svg>`}
-const FLAME='<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c1 3.5-1.5 5-1.5 7.5 0 1.4 1 2.5 2.3 2.5 1.6 0 2.4-1.4 2-3.3C17.6 10.6 19 13 19 15.5 19 19.1 15.9 22 12 22s-7-2.9-7-6.5c0-4.2 3.6-6.4 4.8-9.5.4 1.3.9 2.3 1.6 3C12.2 7 12.6 4.6 12 2z"/></svg>';
 const STATUS_TEXT={good:"On track",warn:"Cutting it close",bad:"Off track"};
 
 function viewHome(){
@@ -437,63 +466,135 @@ function viewHome(){
   let h=topbar(mon,"")+`<div class="stack">`;
   if(S.sample)h+=`<div class="banner"><div class="grow"><strong>Example data.</strong> Clear it and add your own.</div><button class="btn sm primary" data-action="start-fresh">Start fresh</button></div>`;
   pendingBills().forEach(b=>{h+=`<div class="banner warn"><div class="grow"><strong>How much was ${esc(b.name)} this month?</strong></div><button class="btn sm" data-action="ask-bill" data-id="${b.id}">Enter</button></div>`});
-  if(!p.pay){h+=`<div class="banner warn"><div class="grow"><strong>Add your monthly pay</strong> to start tracking your savings goal.</div><button class="btn sm" data-tab="settings">Set up</button></div>`}
-  else{
+  if(!p.pay){h+=`<div class="banner warn"><div class="grow"><strong>Add your monthly pay</strong> to start tracking.</div><button class="btn sm" data-tab="settings">Set up</button></div>`}
+  const bal=balanceNow(),thisMonth=monthNet(curYM());
+  h+=`<section class="balance"><div class="label">Total savings</div><div class="big num">${money(bal)}</div>
+    <div class="row2"><span class="num">${thisMonth>=0?"+":"−"}${money(Math.abs(thisMonth))} so far in ${mon}</span><button data-action="fix-balance">Match my bank</button></div></section>`;
+  if(!S.settings.histSet)h+=`<div class="banner"><div class="grow"><strong>Add what you'd saved before using the app</strong> so your total is right.</div><button class="btn sm" data-tab="savings">Add</button></div>`;
+  if(p.pay){
     const pct=p.target?p.projSave/p.target:0;
     h+=`<section class="goalcard ${p.status}"><div class="ring">${ringSVG(pct,col)}<div class="c num">${Math.max(0,Math.round(pct*100))}%<small>of goal</small></div></div>
-      <div class="txt"><div class="label">On pace to save</div><div class="big2 num">${money(p.projSave)}</div>
+      <div class="txt"><div class="label">This month, on pace to save</div><div class="big2 num">${money(p.projSave)}</div>
       <span class="status ${p.status}">${STATUS_TEXT[p.status]} · goal ${money(p.target)}</span></div></section>`;
-    const tl=p.todayLeft,tcls=tl<0?"bad":tl<p.allowance*.3?"warn":"good",sk=streak();
-    h+=`<div class="card"><div class="today"><div><div class="label">You can spend today</div><div class="amt2 num ${tcls}" style="margin-top:6px">${money(Math.max(0,tl),0)}</div>
-      <div class="small muted" style="margin-top:6px">${tl<0?`${money(-tl,0)} over today. Tomorrow's amount drops a bit.`:`Stay under this and you'll hit ${money(p.target)}.`}</div></div>
-      <div class="streak ${sk?"on":""}">${FLAME}<b class="num">${sk}</b><span>day streak</span></div></div>
-      <div class="week">${(()=>{let w="";for(let i=6;i>=0;i--){const d=new Date(now);d.setDate(now.getDate()-i);const pp=plan(ymOf(iso(d)));const st=dayStatus(pp,d.getDate());const amt=pp.byDay[d.getDate()];
-        w+=`<div class="day"><span>${d.toLocaleDateString("en-US",{weekday:"narrow"})}</span><div class="dot s-${st} ${i===0?"now":""}" title="${money(amt)}">${d.getDate()}</div><span class="num">${amt?money(amt,0):"–"}</span></div>`}return w})()}</div></div>`;
-    const sm=summary(curYM());
-    h+=`<div class="card"><div style="display:flex;justify-content:space-between;align-items:baseline"><span class="label">This month</span><button class="link" data-tab="history">Details</button></div>
+    const net=p.pay-p.bills-p.spent,left=p.spendable-p.spent,sm=summary(curYM());
+    h+=`<div class="card"><div style="display:flex;justify-content:space-between;align-items:baseline"><span class="label">${mon} so far</span><button class="link" data-tab="history">Details</button></div>
       <div class="ledger" style="margin-top:6px">
       <div class="line"><span>Pay</span><span class="num">${money(p.pay)}</span></div>
       <div class="line"><span>Bills</span><span class="num">−${money(p.bills)}</span></div>
-      <div class="line"><span>Savings goal</span><span class="num">−${money(p.target)}</span></div>
-      <div class="line"><span>Spent in ${p.td} day${p.td>1?"s":""}</span><span class="num">−${money(p.spent)}</span></div>
-      <div class="line total"><span>Left to spend</span><span class="num" style="color:${p.spendable-p.spent<0?"var(--bad)":"var(--good)"}">${money(p.spendable-p.spent)}</span></div></div>
+      <div class="line"><span>Spent</span><span class="num">−${money(p.spent)}</span></div>
+      <div class="line total"><span>Total money left</span><span class="num" style="color:${net<0?"var(--bad)":"var(--ink)"}">${money(net)}</span></div>
+      <div class="line"><span>Keep for savings goal</span><span class="num">−${money(p.target)}</span></div>
+      <div class="line total"><span>Left to spend</span><span class="num" style="color:${left<0?"var(--bad)":"var(--good)"}">${money(left)}</span></div></div>
       ${sm.total?`<div class="split" style="margin-top:10px">${sm.needs?`<i style="width:${sm.needs/sm.total*100}%;background:var(--needs)"></i>`:""}${sm.others?`<i style="width:${sm.others/sm.total*100}%;background:var(--other)"></i>`:""}</div>
       <div class="keyrow" style="margin-top:0"><span><i style="background:var(--needs)"></i>Rent & needs ${money(sm.needs)}</span><span><i style="background:var(--other)"></i>Everything else ${money(sm.others)}</span></div>`:""}</div>`;
     const pm=pastMonths();
-    if(pm.length){const hits=pm.filter(x=>x.hit).length;
-      h+=`<div class="card"><div class="label">Goal months · ${hits} of ${pm.length} hit</div><div class="months">${pm.map(x=>`<div class="mchip ${x.hit?"s-zero":"s-bad"}">${monthName(x.ym)} ${x.hit?"✓":"✗"}<b class="num">${money(x.saved)}</b></div>`).join("")}<div class="mchip s-future">${monthName(curYM())}<b class="num">${money(p.projSave)}</b></div></div></div>`}
+    if(pm.length){const hits=pm.filter(x=>x.hit).length,sk=goalStreak();
+      h+=`<div class="card"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px"><span class="label">Goal months · ${hits} of ${pm.length} hit</span>${sk>1?`<span class="status good" style="background:var(--good-soft)">${sk} in a row</span>`:""}</div>
+        <div class="months">${pm.map(x=>`<div class="mchip ${x.hit?"s-zero":"s-bad"}">${monthName(x.ym)} ${x.hit?"✓":"✗"}<b class="num">${money(x.saved)}</b></div>`).join("")}<div class="mchip s-future">${monthName(curYM())}<b class="num">${money(p.projSave)}</b></div></div></div>`}
   }
   const recent=[...S.tx].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5);
   h+=`<div class="section-h"><h2>Recent</h2><button class="link" data-tab="history">See all</button></div><div class="list">${recent.length?recent.map(txRow).join(""):`<div class="empty">Tap + to log a purchase or credit card spending.</div>`}</div>`;
   return h+`</div>`;
 }
 
-function calHTML(p){const[y,m]=p.ym.split("-").map(Number);const first=new Date(y,m-1,1).getDay();
-  let h=`<div class="cal">${["S","M","T","W","T","F","S"].map(d=>`<div class="h">${d}</div>`).join("")}`;
-  for(let i=0;i<first;i++)h+=`<div></div>`;
-  for(let d=1;d<=p.dim;d++){const st=dayStatus(p,d),a=p.byDay[d];h+=`<div class="cell s-${st}" title="${money(a)}">${d}${st!=="future"&&a?`<small class="num">${money(a,0)}</small>`:""}</div>`}
-  return h+`</div><div class="keyrow"><span><i class="s-zero"></i>No spend</span><span><i class="s-ok"></i>Under ${money(Math.max(0,p.base),0)}</span><span><i class="s-warn"></i>A bit over</span><span><i class="s-bad"></i>Way over</span></div>`}
-
 function viewHistory(){
   const ym=ui.month,cur=curYM(),p=plan(ym),sm=summary(ym);
-  const saved=p.isCur?p.projSave:p.pay-p.bills-p.spent;const hit=saved>=p.target;
+  const saved=p.isCur?p.projSave:monthNet(ym);const hit=saved>=p.target;
   let h=topbar("History",`<button class="btn sm" data-action="edit-cats">Categories</button>`);
   h+=`<div class="stack"><div class="monthnav"><button data-action="month" data-k="-1" aria-label="Previous month">${ICON.back}</button><b>${monthName(ym,true)}</b><button data-action="month" data-k="1" aria-label="Next month" ${ym>=cur?"disabled":""}>${ICON.fwd}</button></div>`;
+  if(ym<startYM()){const v=(S.history||{})[ym];
+    h+=`<div class="card"><div class="label">Saved</div><div style="font-family:var(--display);font-size:34px;font-weight:700" class="num">${v!=null?money(v):"–"}</div><div class="small muted">Before you started tracking. Edit in Settings → Savings history.</div></div></div>`;return h}
   h+=`<div class="card"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px"><span class="label">${p.isCur?"On pace to save":"Saved"}</span>${p.pay?`<span class="status ${p.isCur?p.status:(hit?"good":"bad")}" style="background:var(--surface-2)">${hit?"Goal hit":"Goal missed"}${p.isCur?" (so far)":""}</span>`:""}</div>
     <div style="font-family:var(--display);font-size:34px;font-weight:700;margin-top:2px;color:${hit?"var(--good)":"var(--bad)"}" class="num">${money(saved)}</div>
-    <div class="small muted">Spent ${money(sm.total)} in ${sm.days} days, bills included · goal ${money(p.target)}</div>${calHTML(p)}</div>`;
+    <div class="ledger" style="margin-top:8px"><div class="line"><span>Pay</span><span class="num">${money(p.pay)}</span></div><div class="line"><span>Bills</span><span class="num">−${money(p.bills)}</span></div><div class="line"><span>Spent</span><span class="num">−${money(p.spent)}</span></div></div></div>`;
   if(sm.total)h+=`<div class="card"><div class="label">Where it went</div>${splitHTML(sm,true)}</div>`;
   const list=txIn(ym).filter(t=>!ui.catFilter||t.cat===ui.catFilter).sort((a,b)=>b.date.localeCompare(a.date));
   h+=`<div class="section-h"><h2>${ui.catFilter?esc(catById(ui.catFilter)?.name||"Category"):"Purchases"}</h2>${ui.catFilter?`<button class="link" data-action="cat-filter" data-id="">Show all</button>`:`<span class="small muted">${list.length}</span>`}</div><div class="list">`;
   if(!list.length)h+=`<div class="empty">Nothing logged in ${monthName(ym,true)}.</div>`;
-  let last="";list.forEach(t=>{if(t.date!==last){last=t.date;const d=+t.date.slice(8);h+=`<div class="daygroup">${parseISO(t.date).toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}<span class="dt num s-${dayStatus(p,d)}">${money(p.byDay[d])}</span></div>`}h+=txRow(t)});
+  let last="";list.forEach(t=>{if(t.date!==last){last=t.date;h+=`<div class="daygroup">${parseISO(t.date).toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}</div>`}h+=txRow(t)});
   return h+`</div></div>`;
+}
+
+/* ---------- Forecast ---------- */
+function niceTicks(lo,hi,n){const span=hi-lo||1,raw=span/n,mag=Math.pow(10,Math.floor(Math.log10(raw))),f=raw/mag,step=(f<1.5?1:f<3?2:f<7?5:10)*mag;
+  const out=[];const top=Math.ceil(hi/step)*step;for(let v=Math.floor(lo/step)*step;v<=top+step*.001;v+=step)out.push(v);return out}
+const kfmt=v=>Math.abs(v)>=1e6?"$"+(v/1e6).toFixed(1).replace(/\.0$/,"")+"M":Math.abs(v)>=1e3?"$"+Math.round(v/1e3)+"k":"$"+Math.round(v);
+let FC=null;
+function viewForecast(){
+  const hz=ui.horizon||36,tl=timeline(),cur=curYM(),p=plan(cur),avg=avgMonthly(),target=+S.settings.target||0;
+  const past=tl.filter(x=>x.ym<cur).slice(-24);
+  const prevBal=past.length?past.at(-1).bal:tl[0].bal;
+  const endThis=prevBal+p.projSave;
+  const months=[];for(let i=0;i<hz;i++)months.push(shiftYM(cur,i));
+  const A=[endThis,...project(endThis,avg.v,hz-1)],G=[prevBal+Math.max(p.projSave,target),...project(prevBal+Math.max(p.projSave,target),target,hz-1)];
+  FC={past,months,A,G,prevBal};
+  let h=topbar("Forecast","")+`<div class="stack">`;
+  h+=`<div class="seg">${[[12,"1 year"],[36,"3 years"],[60,"5 years"]].map(([v,l])=>`<button class="${hz===v?"on":""}" data-action="horizon" data-v="${v}">${l}</button>`).join("")}</div>`;
+  const endA=A.at(-1),endG=G.at(-1),endYM=months.at(-1);
+  h+=`<div class="card"><div class="label">By ${monthName(endYM,true)}</div>
+    <div class="legend" style="margin-top:8px"><div><span class="k"><i style="background:var(--needs)"></i>${avg.n?"At your average":"At this month's pace"}</span><b class="num">${money(endA)}</b><span class="p">saving ${money(avg.v)}/mo</span></div>
+    <div><span class="k"><i style="background:var(--other)"></i>Hitting your goal</span><b class="num">${money(endG)}</b><span class="p">saving ${money(target)}/mo</span></div></div>
+    <div class="chart" id="fchart">${chartSVG()}<div class="tip" id="ftip" hidden></div></div>
+    <div class="keyrow">${past.length>1?`<span><i style="background:var(--ink-2)"></i>Actual</span>`:""}<span><i style="background:var(--needs)"></i>${avg.n?"Average":"This month's pace"}</span><span><i style="background:var(--other)"></i>Goal</span></div></div>`;
+  const gap=endG-endA;
+  h+=`<div class="card"><div class="label">What this means</div><div class="stack small ink2" style="gap:8px;margin-top:8px;font-size:14px">
+    ${avg.n?`<div>Your average over the last ${avg.n} month${avg.n>1?"s":""} is <b>${money(avg.v)}</b> a month${avg.v<target?`, <b>${money(target-avg.v)}</b> short of your goal`:`, above your goal`}.</div>`:`<div>No full months yet, so this uses this month's pace (${money(avg.v)}/mo). That's only reliable if you've logged all your spending. ${S.settings.histMode==="monthly"?"":"Entering your savings history month by month (Settings → Savings history) gives a real average."}</div>`}
+    ${Math.abs(gap)>100?`<div>${gap>0?`Hitting your goal every month instead puts you <b>${money(gap)}</b> ahead by ${monthName(endYM,true)}.`:`At your current average you'll end up <b>${money(-gap)}</b> ahead of your goal by ${monthName(endYM,true)}.`}</div>`:""}
+    ${+S.settings.apy?`<div>Includes ${S.settings.apy}% yearly interest on your savings.</div>`:`<div>No interest included. If your savings sit in a high-yield account, add its rate in Settings.</div>`}</div></div>`;
+  const bal=balanceNow(),steps=[10e3,25e3,50e3,75e3,100e3,150e3,200e3,250e3,300e3,400e3,500e3,750e3,1e6].filter(v=>v>bal).slice(0,5);
+  const when=(mo)=>mo==null?"–":(()=>{const ym=shiftYM(cur,mo);return `${monthName(ym)} '${ym.slice(2,4)}`})();
+  if(steps.length)h+=`<div class="card"><div class="label">Milestones</div><div class="mile" style="margin-top:10px"><span class="h">Savings</span><span class="h v">${avg.n?"Average":"Pace"}</span><span class="h v">Goal</span>
+    ${steps.map(v=>`<span class="m num">${kfmt(v)}</span><span class="v">${when(avg.v>0||+S.settings.apy?monthsTo(prevBal,avg.v,v):null)}</span><span class="v">${when(monthsTo(prevBal,target,v))}</span>`).join("")}</div></div>`;
+  h+=`<p class="small muted" style="margin:0 2px">Starts from your total savings at the end of ${monthName(shiftYM(cur,-1),true)} (${money(prevBal)}) plus this month's pace. A forecast, not a promise.</p>`;
+  return h+`</div>`;
+}
+function chartSVG(){
+  const {past,months,A,G}=FC,W=340,H=210,L=44,R=12,T=10,B=24;
+  const n=past.length+months.length,xs=i=>L+(n>1?i*(W-L-R)/(n-1):0);
+  const all=[...past.map(x=>x.bal),...A,...G];let lo=Math.min(0,...all),hi=Math.max(...all,1);
+  const ticks=niceTicks(lo,hi,4);lo=ticks[0];hi=ticks.at(-1);const ys=v=>T+(H-T-B)*(1-(v-lo)/(hi-lo||1));
+  const path=pts=>pts.map((q,i)=>(i?"L":"M")+q[0].toFixed(1)+","+q[1].toFixed(1)).join("");
+  const off=past.length,anchor=past.length?[[xs(off-1),ys(past.at(-1).bal)]]:[];
+  let s=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Savings forecast chart">`;
+  ticks.forEach(t=>{s+=`<line x1="${L}" x2="${W-R}" y1="${ys(t)}" y2="${ys(t)}" stroke="var(--line)" stroke-width="1"/><text x="${L-6}" y="${ys(t)+4}" text-anchor="end" font-size="10" fill="var(--muted)">${kfmt(t)}</text>`});
+  const every=Math.ceil(n/5);for(let i=0;i<n;i+=every){const ym=i<off?past[i].ym:months[i-off];s+=`<text x="${xs(i)}" y="${H-6}" text-anchor="middle" font-size="10" fill="var(--muted)">${monthName(ym)} '${ym.slice(2,4)}</text>`}
+  if(past.length>1)s+=`<path d="${path(past.map((x,i)=>[xs(i),ys(x.bal)]))}" fill="none" stroke="var(--ink-2)" stroke-width="2" stroke-linejoin="round"/>`;
+  s+=`<path d="${path(anchor.concat(G.map((v,i)=>[xs(off+i),ys(v)])))}" fill="none" stroke="var(--other)" stroke-width="2" stroke-dasharray="5 4" stroke-linejoin="round"/>`;
+  s+=`<path d="${path(anchor.concat(A.map((v,i)=>[xs(off+i),ys(v)])))}" fill="none" stroke="var(--needs)" stroke-width="2" stroke-linejoin="round"/>`;
+  s+=`<circle cx="${xs(n-1)}" cy="${ys(A.at(-1))}" r="4" fill="var(--needs)" stroke="var(--surface)" stroke-width="2"/><circle cx="${xs(n-1)}" cy="${ys(G.at(-1))}" r="4" fill="var(--other)" stroke="var(--surface)" stroke-width="2"/>`;
+  s+=`<line id="fx" x1="0" x2="0" y1="${T}" y2="${H-B}" stroke="var(--ink-2)" stroke-width="1" visibility="hidden"/>`;
+  s+=`<rect x="${L}" y="${T}" width="${W-L-R}" height="${H-T-B}" fill="transparent" id="fhit"/></svg>`;
+  return s;
+}
+function bindChart(){const box=document.getElementById("fchart");if(!box||!FC)return;const svg=box.querySelector("svg"),tip=box.querySelector("#ftip"),fx=svg.querySelector("#fx");
+  const {past,months,A,G}=FC,n=past.length+months.length,L=44,R=12,W=340;
+  const move=e=>{const r=svg.getBoundingClientRect(),x=(e.clientX-r.left)/r.width*W;let i=Math.round((x-L)/((W-L-R)/Math.max(1,n-1)));i=Math.max(0,Math.min(n-1,i));
+    const X=L+i*(W-L-R)/Math.max(1,n-1);fx.setAttribute("x1",X);fx.setAttribute("x2",X);fx.setAttribute("visibility","visible");
+    const off=past.length;let html;if(i<off)html=`<b>${monthName(past[i].ym,true)}</b><br>Actual: ${money(past[i].bal)}`;
+    else{const k=i-off;html=`<b>${monthName(months[k],true)}</b><br><i style="background:var(--needs)"></i>Average: ${money(A[k])}<br><i style="background:var(--other)"></i>Goal: ${money(G[k])}`}
+    tip.innerHTML=html;tip.hidden=false;const px=X/W*r.width;tip.style.left=Math.max(70,Math.min(r.width-70,px))+"px"};
+  svg.addEventListener("pointermove",move);svg.addEventListener("pointerdown",move);
+  svg.addEventListener("pointerleave",()=>{tip.hidden=true;fx.setAttribute("visibility","hidden")})}
+
+/* ---------- Savings history (before the app) ---------- */
+function viewSavings(){
+  const st=S.settings,sy=startYM(),mode=st.histMode||"total";
+  let h=`<header class="topbar"><div style="display:flex;align-items:center;gap:8px"><button class="iconbtn" data-tab="settings" aria-label="Back">${ICON.back}</button><h1>Savings history</h1></div></header><div class="stack">`;
+  h+=`<p class="small ink2" style="margin:0 2px">Tell the app what you'd saved before you started tracking in ${monthName(sy,true)}. Use your net savings: money you kept after all spending.</p>`;
+  h+=`<div class="card stack"><div class="field"><label for="jobStart">When did your job start?</label><input type="month" id="jobStart" data-setting="jobStart" value="${st.jobStart||""}" max="${shiftYM(sy,-1)}"></div>
+    <div class="seg"><button class="${mode==="total"?"on":""}" data-action="set" data-k="histMode" data-v="total">One total</button><button class="${mode==="monthly"?"on":""}" data-action="set" data-k="histMode" data-v="monthly">Month by month</button></div>`;
+  if(mode==="total"){h+=`<div class="field"><label for="openingTotal">Total savings at the end of ${monthName(shiftYM(sy,-1),true)}</label><input id="openingTotal" inputmode="decimal" data-setting="openingTotal" value="${st.openingTotal||""}" placeholder="0"><span class="hint">Check your bank and investment balances, minus any card debt.</span></div>`}
+  else if(!st.jobStart){h+=`<div class="small muted">Pick your job start month first.</div>`}
+  else{let rows="",tot=0;for(let ym=st.jobStart;ym<sy;ym=shiftYM(ym,1)){const v=(S.history||{})[ym];tot+=+v||0;rows+=`<div class="hist-row"><label for="h-${ym}">${monthName(ym,true)}</label><input id="h-${ym}" inputmode="decimal" data-hist="${ym}" value="${v??""}" placeholder="0"></div>`}
+    h+=`<div>${rows}</div><div class="line total" style="display:flex;justify-content:space-between"><span><b>Total</b></span><span class="num"><b>${money(tot)}</b></span></div><span class="hint small muted">Months you lost money can be negative.</span>`}
+  h+=`</div><button class="btn primary block" data-action="hist-done">Done</button>`;
+  return h+`</div>`;
 }
 
 function viewBills(){
   const items=S.bills.map(b=>({b,d:nextDue(b)})).sort((a,b)=>a.d-b.d);
   const total=billsTotal();const week=items.filter(x=>daysUntil(x.d)<=7);
-  let h=topbar("Bills",`<button class="btn sm primary" data-action="edit-bill">${ICON.plus.replace('<svg','<svg width="16" height="16"')} Add</button>`);
+  let h=`<header class="topbar"><div style="display:flex;align-items:center;gap:8px"><button class="iconbtn" data-tab="settings" aria-label="Back">${ICON.back}</button><h1>Bills</h1></div><button class="btn sm primary" data-action="edit-bill">${ICON.plus.replace('<svg','<svg width="16" height="16"')} Add</button></header>`;
   h+=`<div class="stack"><div class="kpis"><div class="kpi"><div class="label">Fixed costs</div><b class="num">${money(total)}</b><div class="small muted">per month</div></div>
     <div class="kpi"><div class="label">Next 7 days</div><b class="num">${money(week.reduce((a,x)=>a+x.b.amount,0))}</b><div class="small muted">${week.length} bill${week.length===1?"":"s"}</div></div></div>`;
   h+=`<div class="section-h"><h2>Coming up</h2></div><div class="list">`;
@@ -502,11 +603,15 @@ function viewBills(){
 }
 
 function viewSettings(){
-  const st=S.settings;
+  const st=S.settings,chev=ICON.fwd.replace('<svg','<svg width="18" height="18" style="color:var(--muted)"');
   let h=topbar("Settings","")+`<div class="stack"><div class="card stack">
-    <div class="field"><label for="payMonthly">Monthly take-home pay</label><input id="payMonthly" inputmode="decimal" data-setting="payMonthly" value="${st.payMonthly||""}" placeholder="8,500"><span class="hint">What lands in your bank each month.</span></div>
-    <div class="field"><label for="target">Save every month</label><input id="target" inputmode="decimal" data-setting="target" value="${st.target||""}" placeholder="4,000"><span class="hint">Your goal. Everything in the app is built around hitting it.</span></div></div>
-    <div class="list"><button class="row" data-action="edit-cats"><span class="grow"><div class="t">Categories</div><div class="s">Choose which count as needs</div></span></button></div>
+    <div class="field"><label for="payMonthly">Monthly take-home pay</label><input id="payMonthly" inputmode="decimal" data-setting="payMonthly" value="${st.payMonthly||""}" placeholder="8,500"></div>
+    <div class="field"><label for="target">Save every month</label><input id="target" inputmode="decimal" data-setting="target" value="${st.target||""}" placeholder="4,000"></div>
+    <div class="field"><label for="apy">Interest on savings (% per year)</label><input id="apy" inputmode="decimal" data-setting="apy" value="${st.apy||""}" placeholder="0"><span class="hint">Only for the forecast. High-yield savings accounts pay around 3–4%.</span></div></div>
+    <div class="list">
+    <button class="row" data-tab="bills"><span class="grow"><div class="t">Bills</div><div class="s">${S.bills.length} bill${S.bills.length===1?"":"s"} · ${money(billsMonthTotal(curYM()))}/month</div></span>${chev}</button>
+    <button class="row" data-tab="savings"><span class="grow"><div class="t">Savings history</div><div class="s">What you'd saved before using the app</div></span>${chev}</button>
+    <button class="row" data-action="edit-cats"><span class="grow"><div class="t">Categories</div><div class="s">Choose which count as needs</div></span>${chev}</button></div>
     <div class="list">
     <button class="row" data-action="export"><span class="grow"><div class="t">Export backup</div><div class="s">Save a copy to iCloud Drive once a month</div></span></button>
     <button class="row" data-action="import"><span class="grow"><div class="t">Restore from backup</div><div class="s">Replaces everything in the app</div></span></button>
@@ -594,6 +699,13 @@ function billSheet(id){
   });
 }
 
+function fixBalanceSheet(){
+  const now=balanceNow();
+  openSheet("Match my bank",`<form class="stack" id="fbf"><p class="small ink2" style="margin:0">The app thinks your total savings are <b>${money(now)}</b>. Enter what you actually have (bank + investments − card debt) and the app adjusts this month.</p>
+    <div class="field"><label for="fbamt">Actual total savings</label><input id="fbamt" inputmode="decimal" required placeholder="${Math.round(now)}"></div><button class="btn primary block" type="submit">Update</button></form>`,sh=>{
+    sh.querySelector("#fbf").onsubmit=e=>{e.preventDefault();const v=parseFloat(String(sh.querySelector("#fbamt").value).replace(/[$,]/g,""));if(isNaN(v)){toast("Enter an amount");return}
+      const diff=Math.round((v-now)*100)/100;if(diff){S.adjust=S.adjust||[];S.adjust.push({ym:curYM(),amount:diff,date:today()})}S.settings.histSet=true;closeSheet();commit("Total savings updated")}});
+}
 function askBill(id){
   const b=S.bills.find(x=>x.id===id);if(!b)return;const ym=curYM();const d={amount:"0"};
   openSheet(`${esc(b.name)}, ${monthName(ym,true).split(" ")[0]}`,`<div class="stack"><p class="ink2" style="margin:0">How much was it this month?</p>
@@ -683,17 +795,22 @@ document.addEventListener("click",e=>{
     case "edit-bill":billSheet(id);break;
     case "ask-bill":askBill(id);break;
     case "edit-cats":catsSheet();break;
+    case "fix-balance":fixBalanceSheet();break;
+    case "horizon":ui.horizon=+a.dataset.v;render();break;
+    case "hist-done":S.settings.histSet=true;ui.tab="home";commit("Savings history saved");window.scrollTo(0,0);break;
     case "month":ui.month=shiftYM(ui.month,+a.dataset.k);render();break;
     case "cat-filter":ui.catFilter=(id&&ui.catFilter!==id)?id:null;render();break;
-    case "set":S.settings[a.dataset.k]=a.dataset.v;if(a.dataset.k==="theme")applyTheme();commit();break;
+    case "set":S.settings[a.dataset.k]=a.dataset.v;if(a.dataset.k==="histMode")S.settings.histSet=true;if(a.dataset.k==="theme")applyTheme();commit();break;
     case "export":exportData();break;
     case "import":importData();break;
     case "start-fresh":confirmSheet("Clear example data?","This removes the example transactions, bills and goals. Your categories stay, and you can change them anytime.","Clear examples",()=>{const keep=S.categories;S=baseState();S.categories=keep;S.settings.payMonthly=0;applyTheme();ui.tab="settings";commit("Examples cleared. Add your paycheck next.")});break;
     case "reset":confirmSheet("Erase everything?","All transactions, bills, goals and settings on this phone will be deleted. Export a backup first if you might want them.","Erase everything",()=>{S=baseState();applyTheme();ui.tab="home";commit("All data erased")});break;
   }
 });
-document.addEventListener("change",e=>{const k=e.target.dataset&&e.target.dataset.setting;if(!k)return;let v=e.target.value;
-  if(k!=="payFreq")v=parseFloat(String(v).replace(/[$,%\s]/g,""))||0;S.settings[k]=v;
+document.addEventListener("change",e=>{const hm=e.target.dataset&&e.target.dataset.hist;
+  if(hm){S.history=S.history||{};const raw=String(e.target.value).replace(/[$,\s]/g,"");if(raw==="")delete S.history[hm];else S.history[hm]=parseFloat(raw)||0;S.settings.histSet=true;save();render();return}
+  const k=e.target.dataset&&e.target.dataset.setting;if(!k)return;let v=e.target.value;
+  if(k!=="payFreq"&&k!=="jobStart")v=parseFloat(String(v).replace(/[$,%\s]/g,""))||0;S.settings[k]=v;if(k==="openingTotal")S.settings.histSet=true;
   save();render();toast("Saved")});
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("#sheet").hidden)closeSheet()});
 
