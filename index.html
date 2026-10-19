@@ -157,6 +157,9 @@ button{cursor:pointer;border:0;background:none;padding:0}
 .seg{display:flex;background:var(--surface-2);border-radius:12px;padding:3px;gap:3px}
 .seg button{flex:1;height:36px;border-radius:9px;font-weight:600;font-size:14px;color:var(--ink-2)}
 .seg button.on{background:var(--surface);color:var(--ink);box-shadow:var(--shadow)}
+.check{display:flex;gap:12px;align-items:flex-start;padding:12px;background:var(--surface);border:1px solid var(--line);border-radius:12px;cursor:pointer}
+.check input{width:20px;height:20px;margin:1px 0 0;accent-color:var(--accent);flex:none}
+.check b{display:block;font-size:15px}.check span{font-size:13px;color:var(--muted)}
 .chips{display:flex;flex-wrap:wrap;gap:8px}
 .chip{height:36px;padding:0 14px;border-radius:999px;background:var(--surface);border:1px solid var(--line);font-weight:600;font-size:14px}
 .chip.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
@@ -222,6 +225,7 @@ const parseISO=s=>{const[y,m,d]=s.split("-").map(Number);return new Date(y,m-1,d
 const daysIn=(y,m)=>new Date(y,m+1,0).getDate();
 const monthName=(ym,long)=>{const[y,m]=ym.split("-").map(Number);return new Date(y,m-1,1).toLocaleDateString("en-US",{month:long?"long":"short",year:long?"numeric":undefined})};
 const shiftYM=(ym,k)=>{const[y,m]=ym.split("-").map(Number);const d=new Date(y,m-1+k,1);return d.getFullYear()+"-"+pad(d.getMonth()+1)};
+const ord=n=>n+((n%100>=11&&n%100<=13)?"th":({1:"st",2:"nd",3:"rd"}[n%10]||"th"));
 const initials=s=>(s||"?").split(/\s+/).map(w=>w[0]).join("").slice(0,2).toUpperCase();
 
 /* ---------- Tax estimate (2026, single filer, Washington) ---------- */
@@ -281,6 +285,7 @@ function sample(){
   s.tx.push({id:uid(),type:"income",amount:64.2,date:iso(new Date(now.getFullYear(),now.getMonth(),Math.min(3,now.getDate()))),note:"Return refund"});
   s.bills=[["Rent",2400,"monthly",1],["Phone",65,"monthly",12],["Internet",60,"monthly",15],["Seattle City Light",70,"monthly",20],["Gym",45,"monthly",5],["Spotify",12,"monthly",8],["Netflix",18,"monthly",22],["Renter's insurance",180,"yearly",9,3]]
     .map(([name,amount,freq,day,month])=>({id:uid(),name,amount,freq,day,month:month||1}));
+  const cym=ymOf(iso(now));s.bills.forEach(b=>{if(b.name==="Rent"||b.name==="Seattle City Light"){b.varies=true;b.hist={[cym]:b.amount}}});
   const plus=n=>{const d=new Date(now.getFullYear(),now.getMonth()+n,1);return iso(d)};
   s.goals=[{id:uid(),name:"Emergency fund",target:20000,saved:6500,deadline:plus(12)},{id:uid(),name:"Japan trip",target:5000,saved:1200,deadline:plus(8)}];
   return s;
@@ -291,7 +296,11 @@ const catById=id=>S.categories.find(c=>c.id===id);
 function monthlyIncome(){const st=S.settings;
   if(st.mode==="salary")return estimate(st).net/12;
   return (+st.perCheck||0)*(PERIODS[st.payFreq]||26)/12}
-const billMonthly=b=>b.freq==="yearly"?b.amount/12:b.amount;
+const curYM=()=>ymOf(today());
+const billAmt=(b,ym)=>(b.varies&&b.freq!=="yearly"&&b.hist&&b.hist[ym]!=null)?b.hist[ym]:b.amount;
+const billMonthly=b=>b.freq==="yearly"?b.amount/12:billAmt(b,curYM());
+function pendingBills(){const t=new Date(),ym=curYM();const dim=daysIn(t.getFullYear(),t.getMonth());
+  return S.bills.filter(b=>b.varies&&b.freq!=="yearly"&&!(b.hist&&b.hist[ym]!=null)&&t.getDate()>=Math.min(b.day,dim))}
 const billsTotal=()=>S.bills.reduce((a,b)=>a+billMonthly(b),0);
 function monthsLeft(deadline){const t=new Date(),d=parseISO(deadline);return Math.max(1,(d.getFullYear()-t.getFullYear())*12+(d.getMonth()-t.getMonth()))}
 const goalNeed=g=>Math.max(0,g.target-g.saved)/monthsLeft(g.deadline);
@@ -343,6 +352,7 @@ function viewHome(){
   let h=topbar("This month",`<button class="iconbtn" data-tab="settings" aria-label="Settings">${ICON.gear}</button>`);
   h+=`<div class="stack">`;
   if(S.sample)h+=`<div class="banner"><div class="grow"><strong>You're looking at example data.</strong> Explore, then clear it and add your own numbers.</div><button class="btn sm primary" data-action="start-fresh">Start fresh</button></div>`;
+  pendingBills().forEach(b=>{h+=`<div class="banner warn"><div class="grow"><strong>How much was ${esc(b.name)} this month?</strong> It was due on the ${ord(b.day)}.</div><button class="btn sm" data-action="ask-bill" data-id="${b.id}">Enter</button></div>`});
   if(!S.sample&&!income)h+=`<div class="banner warn"><div class="grow"><strong>Add your take-home pay</strong> so the app can work out what's safe to spend.</div><button class="btn sm" data-tab="settings">Set up</button></div>`;
   h+=`<section class="hero ${left<0?"over":""}"><div class="label">Left to spend in ${now.toLocaleDateString("en-US",{month:"long"})}</div>
     <div class="big num">${money(left,0)}</div>
@@ -401,7 +411,7 @@ function viewBills(){
     <div class="kpi"><div class="label">Next 7 days</div><b class="num">${money(week.reduce((a,x)=>a+x.b.amount,0))}</b><div class="small muted">${week.length} bill${week.length===1?"":"s"}</div></div></div>`;
   const inc=monthlyIncome();if(inc)h+=`<div class="banner"><div class="grow">Bills take <strong>${Math.round(total/inc*100)}%</strong> of your take-home pay. A common target is under 50% for needs like rent and utilities.</div></div>`;
   h+=`<div class="section-h"><h2>Coming up</h2></div><div class="list">`;
-  h+=items.length?items.map(({b,d})=>`<button class="row" data-action="edit-bill" data-id="${b.id}"><span class="badge">${d.getDate()}</span><span class="grow"><div class="t">${esc(b.name)}</div><div class="s">${dueText(d)} · ${b.freq==="yearly"?"Yearly":"Monthly"}</div></span><span class="amt">${money2(b.amount)}</span></button>`).join(""):`<div class="empty">Add rent, phone, subscriptions and anything else that repeats.</div>`;
+  h+=items.length?items.map(({b,d})=>`<button class="row" data-action="edit-bill" data-id="${b.id}"><span class="badge">${d.getDate()}</span><span class="grow"><div class="t">${esc(b.name)}</div><div class="s">${dueText(d)} · ${b.freq==="yearly"?"Yearly":b.varies?(b.hist&&b.hist[curYM()]!=null?`Varies · ${monthName(curYM())}: ${money2(b.hist[curYM()])}`:"Varies · we'll ask on the due date"):"Monthly"}</div></span><span class="amt">${b.varies&&b.freq!=="yearly"?"~":""}${money2(b.amount)}</span></button>`).join(""):`<div class="empty">Add rent, phone, subscriptions and anything else that repeats.</div>`;
   return h+`</div></div>`;
 }
 
@@ -507,19 +517,44 @@ function billSheet(id){
   const months=Array.from({length:12},(_,i)=>new Date(2026,i,1).toLocaleDateString("en-US",{month:"long"}));
   openSheet(ex?"Edit bill":"New bill",`<form class="stack" id="bf">
     <div class="field"><label for="bname">Name</label><input id="bname" required value="${esc(b.name)}" placeholder="Rent, Phone, Netflix…"></div>
-    <div class="grid2"><div class="field"><label for="bamt">Amount</label><input id="bamt" required inputmode="decimal" value="${b.amount}" placeholder="0.00"></div>
+    <label class="check" for="bvar"><input type="checkbox" id="bvar" ${b.varies?"checked":""}><div><b>Amount changes each month</b><span>The app asks you for the real amount on the due date. Good for rent and electricity.</span></div></label>
+    <div class="grid2"><div class="field"><label for="bamt" id="bamtl">${b.varies?"Usual amount":"Amount"}</label><input id="bamt" required inputmode="decimal" value="${b.amount}" placeholder="0.00"></div>
       <div class="field"><label for="bfreq">Repeats</label><select id="bfreq"><option value="monthly" ${b.freq==="monthly"?"selected":""}>Monthly</option><option value="yearly" ${b.freq==="yearly"?"selected":""}>Yearly</option></select></div></div>
     <div class="grid2"><div class="field"><label for="bday">Day of month</label><input id="bday" type="number" min="1" max="31" value="${b.day}"></div>
       <div class="field" id="bmonthf" ${b.freq==="yearly"?"":"hidden"}><label for="bmonth">Month</label><select id="bmonth">${months.map((m,i)=>`<option value="${i+1}" ${b.month===i+1?"selected":""}>${m}</option>`).join("")}</select></div></div>
+    <div class="field" id="bcurf" ${b.varies?"":"hidden"}><label for="bcur">Amount for ${monthName(curYM(),true)}</label><input id="bcur" inputmode="decimal" value="${b.hist&&b.hist[curYM()]!=null?b.hist[curYM()]:""}" placeholder="Leave blank if you don't know yet"></div>
     <button class="btn primary block" type="submit">${ex?"Save":"Add bill"}</button>${ex?`<button class="btn danger block" type="button" id="bdel">Delete</button>`:""}</form>`,sh=>{
-    sh.querySelector("#bfreq").onchange=e=>{sh.querySelector("#bmonthf").hidden=e.target.value!=="yearly"};
+    const vis=()=>{const v=sh.querySelector("#bvar").checked&&sh.querySelector("#bfreq").value==="monthly";sh.querySelector("#bcurf").hidden=!v;sh.querySelector("#bamtl").textContent=v?"Usual amount":"Amount"};
+    sh.querySelector("#bvar").onchange=vis;
+    sh.querySelector("#bfreq").onchange=e=>{sh.querySelector("#bmonthf").hidden=e.target.value!=="yearly";vis()};
     sh.querySelector("#bf").onsubmit=e=>{e.preventDefault();
       const amt=parseFloat(String(sh.querySelector("#bamt").value).replace(/[$,]/g,""));if(!(amt>0)){toast("Enter an amount");return}
       const nb={id:ex?ex.id:uid(),name:sh.querySelector("#bname").value.trim()||"Bill",amount:amt,freq:sh.querySelector("#bfreq").value,day:Math.min(31,Math.max(1,parseInt(sh.querySelector("#bday").value)||1)),month:parseInt(sh.querySelector("#bmonth").value)};
+      nb.varies=sh.querySelector("#bvar").checked&&nb.freq==="monthly";nb.hist=Object.assign({},ex&&ex.hist);
+      const cur=parseFloat(String(sh.querySelector("#bcur").value).replace(/[$,]/g,""));
+      if(nb.varies&&cur>0){nb.hist[curYM()]=cur;nb.amount=cur}else if(nb.varies&&!sh.querySelector("#bcur").value.trim())delete nb.hist[curYM()];
       if(ex)Object.assign(ex,nb);else S.bills.push(nb);closeSheet();commit("Bill saved")};
     if(ex)sh.querySelector("#bdel").onclick=()=>{S.bills=S.bills.filter(x=>x.id!==ex.id);closeSheet();commit("Bill deleted")};
   });
 }
+
+function askBill(id){
+  const b=S.bills.find(x=>x.id===id);if(!b)return;const ym=curYM();const d={amount:"0"};
+  openSheet(`${esc(b.name)}, ${monthName(ym,true).split(" ")[0]}`,`<div class="stack"><p class="ink2" style="margin:0">How much was it this month?</p>
+    <div class="amount" id="vamt"></div>
+    <button class="btn block" id="vsame">Same as last time (${money2(b.amount)})</button>
+    ${keypadHTML()}<button class="btn primary block" id="vsave" disabled>Save</button><button class="btn block" data-action="close">Ask me later</button></div>`,sh=>{
+    const draw=()=>{sh.querySelector("#vamt").innerHTML=`<span class="cur">$</span>${esc(Number(d.amount.split(".")[0]).toLocaleString("en-US"))}${d.amount.includes(".")?"."+d.amount.split(".")[1]:""}`;sh.querySelector("#vsave").disabled=!(parseFloat(d.amount)>0)};
+    sh.querySelector(".keypad").onclick=e=>{const k=e.target.closest("[data-key]");if(!k)return;const key=k.dataset.key;let a=d.amount;
+      if(key==="⌫")a=a.length>1?a.slice(0,-1):"0";else if(key==="."){if(!a.includes("."))a+="."}else{if(a.includes(".")&&a.split(".")[1].length>=2)return;if(a.replace(".","").length>=7)return;a=a==="0"?key:a+key}d.amount=a;draw()};
+    const done=amt=>{b.hist=b.hist||{};b.hist[ym]=amt;b.amount=amt;closeSheet();commit(`${b.name}: ${money2(amt)} saved`);
+      setTimeout(()=>{const next=pendingBills()[0];if(next&&$("#sheet").hidden)askBill(next.id)},450)};
+    sh.querySelector("#vsame").onclick=()=>done(b.amount);
+    sh.querySelector("#vsave").onclick=()=>done(Math.round(parseFloat(d.amount)*100)/100);draw()});
+}
+let promptDay=null;
+function maybePrompt(){if(promptDay===today()||!$("#lock").hidden||!$("#sheet").hidden)return;const p=pendingBills();if(!p.length)return;promptDay=today();askBill(p[0].id)}
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"){render();setTimeout(maybePrompt,300)}});
 
 function goalSheet(id,preset){
   const ex=id?S.goals.find(g=>g.id===id):null;const d=new Date();d.setFullYear(d.getFullYear()+1);
@@ -577,7 +612,7 @@ function pinPad(container,title,onDone){let v="";
   draw();return t=>{container.querySelector("#ptitle").textContent=t};
 }
 function showLock(){const L=$("#lock");L.hidden=false;L.innerHTML=`<div class="inner"></div>`;
-  const setT=pinPad(L.querySelector(".inner"),"Enter PIN",async p=>{if(await hashPin(p)===S.settings.pin){L.hidden=true;L.innerHTML="";return true}setT("Wrong PIN. Try again.");return false})}
+  const setT=pinPad(L.querySelector(".inner"),"Enter PIN",async p=>{if(await hashPin(p)===S.settings.pin){L.hidden=true;L.innerHTML="";setTimeout(maybePrompt,300);return true}setT("Wrong PIN. Try again.");return false})}
 function pinSetup(){openSheet("Set PIN",`<div id="pp"></div>`,sh=>{let first=null;
   const setT=pinPad(sh.querySelector("#pp"),"Choose a 4-digit PIN",async p=>{if(!first){first=p;setT("Enter it again");return false}
     if(p!==first){first=null;setT("Didn't match. Choose a PIN");return false}S.settings.pin=await hashPin(p);closeSheet();commit("PIN lock on");return true})})}
@@ -615,6 +650,7 @@ document.addEventListener("click",e=>{
     case "add":txSheet();break;
     case "edit-tx":txSheet(id);break;
     case "edit-bill":billSheet(id);break;
+    case "ask-bill":askBill(id);break;
     case "edit-goal":goalSheet(id);break;
     case "fund-goal":fundSheet(id);break;
     case "quick-ef":{const ess=billsTotal()+["groceries","transport","health"].reduce((s,c)=>s+(+catById(c)?.budget||0),0);const d=new Date();d.setFullYear(d.getFullYear()+1);goalSheet(null,{name:"Emergency fund",target:Math.round(ess*3/100)*100,saved:0,deadline:iso(d)});break}
@@ -635,7 +671,7 @@ document.addEventListener("change",e=>{const k=e.target.dataset&&e.target.datase
   save();render();toast("Saved")});
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("#sheet").hidden)closeSheet()});
 
-S=load();applyTheme();render();
+S=load();applyTheme();render();setTimeout(maybePrompt,500);
 if(S.settings.pin)showLock();
 })();
 </script>
