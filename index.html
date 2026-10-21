@@ -257,6 +257,23 @@ table.breakdown td:last-child{text-align:right;font-variant-numeric:tabular-nums
 table.breakdown tr.total td{font-weight:700;border-bottom:0}
 textarea{width:100%;min-height:120px;border-radius:12px;border:1px solid var(--line);background:var(--surface);padding:10px;font:13px ui-monospace,Menlo,monospace;color:var(--ink)}
 
+/* Ask (chat) */
+.chat{padding-bottom:72px}
+.msg{max-width:86%;padding:10px 13px;border-radius:16px;font-size:15px;line-height:1.45;overflow-wrap:anywhere}
+.msg.me{align-self:flex-end;background:var(--accent);color:var(--accent-ink);border-bottom-right-radius:6px}
+.msg.bot{align-self:flex-start;background:var(--surface);box-shadow:var(--shadow);border-bottom-left-radius:6px}
+.msg.err{background:var(--bad-soft);color:var(--bad);box-shadow:none}
+.chat > .chips{align-self:flex-start;margin-top:-6px}
+.typing{display:flex;gap:4px;padding:14px 16px}
+.typing i{width:7px;height:7px;border-radius:50%;background:var(--muted);animation:blink 1.2s infinite}
+.typing i:nth-child(2){animation-delay:.2s}.typing i:nth-child(3){animation-delay:.4s}
+@keyframes blink{0%,80%,100%{opacity:.25}40%{opacity:1}}
+.composer{position:fixed;left:0;right:0;bottom:calc(62px + env(safe-area-inset-bottom,0px));z-index:15;max-width:520px;margin:0 auto;display:flex;gap:8px;align-items:flex-end;padding:8px max(16px,env(safe-area-inset-right,0px)) 8px max(16px,env(safe-area-inset-left,0px));background:var(--bg)}
+.composer textarea{flex:1;min-height:44px;max-height:120px;resize:none;border-radius:22px;padding:11px 16px;font:16px var(--body);line-height:1.35}
+.sendbtn{width:44px;height:44px;border-radius:50%;flex:none;display:grid;place-items:center;background:var(--accent);color:var(--accent-ink)}
+.sendbtn svg{width:20px;height:20px}.sendbtn:disabled{opacity:.4}
+@media (prefers-reduced-motion: reduce){.typing i{animation:none;opacity:.6}}
+
 .toast{position:fixed;left:50%;bottom:calc(88px + env(safe-area-inset-bottom,0px));transform:translateX(-50%) translateY(20px);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:12px;font-weight:600;font-size:14px;opacity:0;transition:all .2s;z-index:70;pointer-events:none;max-width:calc(100% - 32px)}
 .toast.show{opacity:1;transform:translateX(-50%)}
 </style>
@@ -271,7 +288,7 @@ textarea{width:100%;min-height:120px;border-radius:12px;border:1px solid var(--l
     <button class="tab" data-tab="home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>Home</button>
     <button class="tab" data-tab="history"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg>History</button>
     <button class="addkey" data-action="add" aria-label="Add transaction"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
-    <button class="tab" data-tab="forecast"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l5-5 4 3 8-8"/><path d="M15 7h5v5"/></svg>Forecast</button>
+    <button class="tab" data-tab="ask"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.3 2.4c-.5.2-.8.6-.8 1.1v.5"/><path d="M12 16.5h.01"/></svg>Ask</button>
     <button class="tab" data-tab="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg>Settings</button>
   </div>
 </nav>
@@ -420,12 +437,13 @@ const ICON={gear:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" str
   back:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>',
   fwd:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>',
   close:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>',
-  plus:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>'};
+  plus:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+  send:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>'};
 
 /* ---------- Render ---------- */
 function render(){PC={};
   document.querySelectorAll(".tab").forEach(b=>b.classList.toggle("on",b.dataset.tab===ui.tab));
-  const v=({home:viewHome,history:viewHistory,forecast:viewForecast,bills:viewBills,savings:viewSavings,settings:viewSettings}[ui.tab]||viewHome)();
+  const v=({home:viewHome,history:viewHistory,ask:viewAsk,bills:viewBills,savings:viewSavings,settings:viewSettings}[ui.tab]||viewHome)();
   $("#app").innerHTML=v;
   const map={bills:"settings",savings:"settings"};document.querySelectorAll(".tab").forEach(b=>{if(map[ui.tab]===b.dataset.tab)b.classList.add("on")});
 }
@@ -513,41 +531,113 @@ function viewHistory(){
   return h+`</div></div>`;
 }
 
-/* ---------- Forecast ---------- */
+/* ---------- Average spending (used by Ask for projections) ---------- */
 function avgSpend(){const out=[];for(let ym=shiftYM(curYM(),-1);out.length<3&&ym>=startYM();ym=shiftYM(ym,-1))out.push(plan(ym).spent);
   if(out.length)return{v:out.reduce((a,b)=>a+b,0)/out.length,n:out.length};const p=plan(curYM());return{v:p.td?p.spent/p.td*p.dim:0,n:0}}
-function forecastRows(n){
-  const cur=curYM(),p=plan(cur),auto=avgSpend(),fs=S.settings.fcSpend,sp=(fs===undefined||fs===null||fs==="")?auto.v:+fs;
-  const r=(+S.settings.apy||0)/1200,tl=timeline(),prev=tl.length>1?tl.at(-2).bal:tl[0].bal;let bal=prev;const rows=[];
-  for(let i=0;i<n;i++){const ym=shiftYM(cur,i),pay=monthlyIncome()+(i===0?extraIn(cur):0),bills=billsMonthTotal(ym);
-    const spend=i===0?p.spent+sp*Math.max(0,p.dim-p.td)/p.dim:sp;const saved=pay-bills-spend;bal=bal*(1+r)+saved;rows.push({ym,pay,bills,spend,saved,bal})}
-  return{rows,sp,auto,prev}}
-function viewForecast(){
-  const n=[3,6,12].includes(ui.horizon)?ui.horizon:6,target=+S.settings.target||0,{rows,sp,auto,prev}=forecastRows(n),last=rows.at(-1),hits=rows.filter(r=>r.saved>=target).length;
-  const avgSaved=rows.reduce((a,r)=>a+r.saved,0)/rows.length,now=balanceNow();
-  let h=topbar("Forecast","")+`<div class="stack">`;
-  h+=`<div class="seg">${[[3,"3 months"],[6,"6 months"],[12,"12 months"]].map(([v,l])=>`<button class="${n===v?"on":""}" data-action="horizon" data-v="${v}">${l}</button>`).join("")}</div>`;
-  h+=`<section class="balance"><div class="label">End of ${monthName(last.ym,true)}</div><div class="big num">${money(last.bal)}</div>
-    <div class="row2"><span class="num">+${money(last.bal-now)} from today · ${money(avgSaved)}/mo saved</span></div></section>`;
-  h+=`<div class="card"><div class="field"><label for="fcSpend">Spending per month, not counting bills</label><input id="fcSpend" inputmode="decimal" data-setting="fcSpend" value="${S.settings.fcSpend??""}" placeholder="${Math.round(auto.v)}"><span class="hint">${S.settings.fcSpend!=null&&S.settings.fcSpend!==""?"Your number. Clear it to use your real average.":auto.n?`Your average over the last ${auto.n} month${auto.n>1?"s":""}. Type a number to try a different one.`:`Based on ${monthName(curYM(),true).split(" ")[0]} so far. Only accurate if you've logged everything.`}</span></div></div>`;
-  // bar chart: saved per month vs goal
-  const W=340,H=170,L=8,R=8,T=18,B=22,bw=(W-L-R)/n,maxV=Math.max(target,...rows.map(r=>r.saved),1)*1.12,minV=Math.min(0,...rows.map(r=>r.saved)),ys=v=>T+(H-T-B)*(1-(v-minV)/(maxV-minV));
-  let svg=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Money saved each month compared with your goal">`;
-  rows.forEach((r,i)=>{const x=L+i*bw+bw*.18,w=bw*.64,y0=ys(0),y1=ys(r.saved),top=Math.min(y0,y1),hh=Math.max(2,Math.abs(y0-y1)),c=r.saved>=target?"var(--good)":"var(--warn)";
-    svg+=`<rect x="${x.toFixed(1)}" y="${top.toFixed(1)}" width="${w.toFixed(1)}" height="${hh.toFixed(1)}" rx="4" fill="${c}"><title>${monthName(r.ym,true)}: ${money(r.saved)}</title></rect>`;
-    if(n<=6)svg+=`<text x="${(x+w/2).toFixed(1)}" y="${(top-5).toFixed(1)}" text-anchor="middle" font-size="10.5" font-weight="700" fill="var(--ink-2)">${kfmt(r.saved)}</text>`;
-    svg+=`<text x="${(x+w/2).toFixed(1)}" y="${H-6}" text-anchor="middle" font-size="10" fill="var(--muted)">${n>6?monthName(r.ym).slice(0,1):monthName(r.ym)}</text>`});
-  svg+=`<line x1="${L}" x2="${W-R}" y1="${ys(target)}" y2="${ys(target)}" stroke="var(--ink)" stroke-width="1.5" stroke-dasharray="4 4"/></svg>`;
-  h+=`<div class="card"><div style="display:flex;justify-content:space-between;align-items:baseline"><span class="label">Saved each month</span><span class="status ${hits===n?"good":hits>=n/2?"warn":"bad"}" style="background:var(--surface-2)">Goal hit ${hits} of ${n}</span></div>
-    <div class="chart">${svg}</div><div class="keyrow"><span><i style="background:var(--good)"></i>Hits goal</span><span><i style="background:var(--warn)"></i>Misses goal</span><span><i style="background:none;border-top:2px dashed var(--ink);height:0;width:14px;border-radius:0"></i>Goal ${money(target)}</span></div></div>`;
-  h+=`<div class="card"><div class="label">Month by month</div><div class="mile" style="margin-top:10px;grid-template-columns:1fr auto auto"><span class="h">Month</span><span class="h v">Saved</span><span class="h v">Total</span>
-    ${rows.map(r=>`<span>${monthName(r.ym,true)}${r.ym===curYM()?' <span class="muted small">(now)</span>':""}${S.bills.some(b=>b.freq==="yearly"&&b.month===+r.ym.slice(5))?' <span class="muted small">· yearly bill</span>':""}</span><span class="v" style="color:${r.saved>=target?"var(--good)":"var(--warn)"};font-weight:700">${money(r.saved)}</span><span class="v m">${money(r.bal)}</span>`).join("")}</div>
-    <div class="small muted" style="margin-top:10px">Each month: ${money(monthlyIncome())} pay − that month's bills − ${money(sp)} spending${+S.settings.apy?` + ${S.settings.apy}% interest`:""}.</div></div>`;
-  const ms=[10e3,25e3,50e3,75e3,100e3,150e3,200e3,250e3,500e3,1e6].find(v=>v>now),hitRow=ms&&rows.find(r=>r.bal>=ms);
-  if(ms)h+=`<div class="banner"><div class="grow">${hitRow?`You'll pass <strong>${kfmt(ms)}</strong> in ${monthName(hitRow.ym,true)}.`:`<strong>${kfmt(ms)}</strong> is further out than ${n} months at this pace.`}</div></div>`;
-  return h+`</div>`;
+/* ---------- Ask (AI assistant) ----------
+   Retrieval runs on the phone: plain code picks only the data a question needs and attaches it.
+   Off-topic questions are rejected here without calling the API. By default only savings numbers are sent. */
+const AI_KEY="harshal-money-ai-key",AI_MODEL="claude-haiku-5-5",MAX_ASKS=3,INVALID="Please enter a valid question.";
+const aiKey=()=>{try{return localStorage.getItem(AI_KEY)||""}catch(e){return ""}};
+const AI_SUGGEST=["Where did most of my money go this month?","Will I hit my savings goal this month?","Can I afford a $1,500 trip in December?","How does this month compare to last month?"];
+let chat={msgs:[],asks:0,busy:false,draft:""};
+const AI_RULES=`You answer questions about the user's own finances inside their money app, using only the DATA given with the question. Amounts are USD.
+Reply in exactly one of these forms:
+INVALID  (when it is not a question about the user's own finances)
+ASK: <one short clarifying question> || <short option> || <short option>  (only when a missing detail would really change the answer, e.g. what-ifs about the future or an unclear time period; at most 3 per thread)
+Otherwise just the answer: plain, friendly, under 100 words, whole dollars, brief math if useful, one line of assumptions. If DATA doesn't cover it, say so. Never invent numbers. No specific stock picks.`;
+
+const FIN_RE=/\$|\b(money|spen[dt]|spending|sav(e|ed|es|ing|ings)|goals?|budget\w*|bills?|rent|pa(y|id)|paycheck|income|salary|earn\w*|afford\w*|cost\w*|expens\w*|buy|bought|purchas\w*|transactions?|charge[ds]?|card|cash|dollars?|owe|debt|invest\w*|interest|financ\w*|balance|account|cheap\w*|price\w*|subscriptions?|net worth|emergency fund|broke|splurge\w*|refunds?|on track|compare\w*|this month|last month|how am i doing)\b/i;
+const CAT_SYN={groceries:/grocer|supermarket|trader joe|whole foods|safeway|qfc|costco|\bfood/,eating:/eating|restaurant|dinner|lunch|breakfast|coffee|takeout|\bfood|pizza/,transport:/transport|uber|lyft|\bgas\b|fuel|parking|\bbus\b|train|orca|commute/,
+  shopping:/shopping|clothes|amazon|target/,fun:/\bfun\b|movie|concert|entertain|hobby/,health:/health|doctor|pharmacy|medic|dental/,card:/credit card/};
+const STOP=new Set("about after again also been before could does doing from have into just last like more most much many month months over same should since some spend spent spending than that their them then there these they this those total under very want were what when where which while will with would year years your money purchase purchases biggest largest expensive afford save saved savings goal budget income salary paycheck bills compare things stuff cost costs price".split(" "));
+const MON_RE=/\b(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|(?:in|for|during|of|since) may|may \d{4}|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b/g;
+const MON_IDX=["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"];
+
+const aiCats=q=>S.categories.filter(c=>q.includes(c.name.toLowerCase())||(CAT_SYN[c.id]&&CAT_SYN[c.id].test(q)));
+const aiBillHits=q=>S.bills.filter(b=>q.includes(b.name.toLowerCase()));
+function aiNoteHits(q){const words=(q.match(/[a-z']{4,}/g)||[]).filter(w=>!STOP.has(w));if(!words.length)return[];
+  return S.tx.filter(t=>t.note&&words.some(w=>t.note.toLowerCase().includes(w))).sort((a,b)=>b.date.localeCompare(a.date))}
+const isFinanceQ=q=>FIN_RE.test(q)||aiCats(q).length>0||aiBillHits(q).length>0||aiNoteHits(q).length>0;
+function aiMonths(q){const cur=curYM(),f=firstYM(),out=new Set(),back=n=>{for(let i=0;i<n;i++)out.add(shiftYM(cur,-i))};
+  const n=q.match(/(?:last|past) (\d+|two|three|four|six|twelve) months/);
+  if(n)back(+n[1]||{two:2,three:3,four:4,six:6,twelve:12}[n[1]]);
+  if(/this year|so far this year|ytd/.test(q))back(+cur.slice(5));
+  if(/last month|previous month/.test(q))out.add(shiftYM(cur,-1));
+  if(/this month/.test(q))out.add(cur);
+  for(const m of q.matchAll(MON_RE)){const k=MON_IDX.indexOf(m[1].replace(/^(in|for|during|of|since) /,"").slice(0,3));let ym=cur.slice(0,5)+pad(k+1);if(ym>cur)ym=shiftYM(ym,-12);out.add(ym)}
+  if(!out.size){out.add(cur);out.add(shiftYM(cur,-1))}
+  return[...out].filter(ym=>ym>=f&&ym<=cur).sort().slice(-12)}
+
+function aiRetrieve(q){PC={};q=q.toLowerCase();
+  const r=Math.round,st=S.settings,cur=curYM(),p=plan(cur),L=[];
+  // Always: savings only
+  L.push(`Total savings now: ${r(balanceNow())}. Savings goal: ${r(+st.target||0)}/month.${+st.apy?` Savings interest: ${st.apy}%/yr.`:""}`);
+  L.push(`This month (${cur}, day ${p.td} of ${p.dim}): saved ${r(monthNet(cur))} so far, on pace to save ${r(p.projSave)}.`);
+  const pm=pastMonths();if(pm.length)L.push(`Saved per month: `+pm.map(x=>`${x.ym} ${r(x.saved)}`).join(", "));
+  // Only what the question asks about
+  const months=aiMonths(q),cats=aiCats(q),bills=aiBillHits(q);
+  const broadQ=/where|went|breakdown|categor|most|compare|\bvs\b|than|overall|habit/.test(q),spendQ=broadQ||/spen[dt]|spending|expens|budget|cost/.test(q);
+  const futureQ=/afford|will i|going to|next|future|project|forecast|plan|reach|how long|when (?:will|can|could)|save up|buy|trip|vacation|\bcar\b|house|down ?payment|emergency|by (?:the )?end|in \d+ (?:months|years)|on track/.test(q);
+  const payQ=/\bpay\b|paid|paycheck|income|salary|earn/.test(q);
+  const billQ=/bills?|rent|subscri|utilit|fixed/.test(q)||bills.length;
+  if(payQ||futureQ)L.push(`Monthly take-home pay: ${r(monthlyIncome())}.`+months.map(ym=>{const x=extraIn(ym);return x?` Extra income ${ym}: ${r(x)}.`:""}).join(""));
+  if(billQ){const list=bills.length?bills:S.bills;
+    L.push(`Bills: `+list.map(b=>`${b.name} ${r(billAmt(b,cur))} ${b.freq}${b.freq==="yearly"?" (month "+b.month+")":""}, due day ${b.day}${b.varies?", varies"+(b.hist?" ("+Object.entries(b.hist).sort().slice(-6).map(([k,v])=>k+" "+r(v)).join(", ")+")":""):""}`).join("; "))}
+  if(spendQ||cats.length)months.forEach(ym=>{const pl=plan(ym),sm=summary(ym);let rows=[...sm.needCats,...sm.otherCats].sort((a,b)=>b.amt-a.amt);
+    if(cats.length&&!broadQ)rows=rows.filter(c=>cats.some(x=>x.id===c.id));
+    L.push(`${ym}${pl.isCur?" (in progress)":""}: spent ${r(pl.spent)} excluding bills${pl.isCur&&!cats.length?`, bills ${r(pl.bills)}`:""}; `+(rows.map(c=>`${c.name} ${r(c.amt)}`).join(", ")||"no matching spending"))});
+  if(futureQ){const monthly=S.bills.filter(b=>b.freq==="monthly").reduce((a,b)=>a+billAmt(b,cur),0),avg=avgSpend();
+    L.push(`For projections: monthly bills ${r(monthly)}; average spending excluding bills ${r(avg.v)}/month${avg.n?` (last ${avg.n} months)`:" (this month's pace)"}; typical month saves ${r(monthlyIncome()-monthly-avg.v)}.`+
+      (S.bills.some(b=>b.freq==="yearly")?` Yearly bills: `+S.bills.filter(b=>b.freq==="yearly").map(b=>`${b.name} ${r(b.amount)} in month ${b.month}`).join(", ")+".":""))}
+  const notes=aiNoteHits(q);
+  if(notes.length){L.push(`Purchases matching "${q.match(/[a-z']{4,}/g).filter(w=>!STOP.has(w)).join(", ")}" (${notes.length}, total ${r(notes.reduce((a,t)=>a+t.amount,0))}), latest first:`);
+    notes.slice(0,20).forEach(t=>L.push(`${t.date} ${t.note} ${t.amount}`))}
+  if(/biggest|largest|most expensive|\btop\b|transactions|purchases|what did i buy/.test(q)){
+    const tx=S.tx.filter(t=>t.type==="expense"&&months.includes(ymOf(t.date)));
+    const pick=/biggest|largest|most expensive|\btop\b/.test(q)?[...tx].sort((a,b)=>b.amount-a.amount).slice(0,10):tx.sort((a,b)=>b.date.localeCompare(a.date)).slice(0,15);
+    L.push(`Purchases (${months.join(", ")}): `+pick.map(t=>`${t.date} ${(catById(t.cat)||{}).name||"Other"} ${t.note||""} ${t.amount}`).join("; "))}
+  return L.join("\n")}
+
+// The current thread: everything since the last final answer
+function aiThread(){const out=[];for(let i=chat.msgs.length-1;i>=0;i--){const m=chat.msgs[i];if(m.role==="assistant"&&m.kind==="answer")break;if(!m.invalid&&!m.error)out.unshift(m)}return out}
+
+async function aiSend(text){
+  text=String(text||"").trim();if(!text||chat.busy)return;
+  const u={role:"user",text};chat.msgs.push(u);chat.draft="";
+  if(!chat.asks&&!isFinanceQ(text.toLowerCase())){u.invalid=true;chat.msgs.push({role:"assistant",text:INVALID,invalid:true});render();scrollChat();return}
+  if(!aiKey()){chat.msgs.pop();toast("Add your API key in Settings first");render();return}
+  chat.busy=true;render();scrollChat();
+  try{
+    const th=aiThread(),data=aiRetrieve(th.filter(m=>m.role==="user").map(m=>m.text).join(" "));
+    const note=chat.asks?`\n(Clarifying questions asked: ${chat.asks} of ${MAX_ASKS}.${chat.asks>=MAX_ASKS?" Answer now.":""})`:"";
+    const messages=th.map((m,i)=>({role:m.role,content:i===th.length-1?`DATA:\n${data}\n\nQUESTION: ${m.text}${note}`:m.text}));
+    const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",
+      headers:{"content-type":"application/json","x-api-key":aiKey(),"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+      body:JSON.stringify({model:AI_MODEL,max_tokens:300,system:AI_RULES,messages})});
+    const out=await res.json().catch(()=>({}));
+    if(!res.ok)throw new Error(res.status===401?"That API key didn't work. Check it in Settings.":res.status===429?"Too many requests. Try again in a minute.":(out.error&&out.error.message)||"Something went wrong. Try again.");
+    const raw=(out.content||[]).map(c=>c.text||"").join("").trim();
+    if(/^INVALID\b/i.test(raw)){u.invalid=true;chat.msgs.push({role:"assistant",text:INVALID,invalid:true})}
+    else if(/^ASK:/i.test(raw)&&chat.asks<MAX_ASKS){const[q,...opts]=raw.slice(4).split("||").map(s=>s.trim()).filter(Boolean);
+      chat.msgs.push({role:"assistant",kind:"ask",text:q||raw,options:opts.slice(0,4)});chat.asks++}
+    else{chat.msgs.push({role:"assistant",kind:"answer",text:raw.replace(/^ASK:\s*/i,"").split("||")[0].trim()||"I couldn't work that out from your data."});chat.asks=0}
+  }catch(e){u.error=true;chat.msgs.push({role:"assistant",error:true,text:e instanceof TypeError?"Couldn't reach the assistant. Check your connection.":e.message})}
+  chat.busy=false;render();scrollChat();
 }
-const kfmt=v=>Math.abs(v)>=1e6?"$"+(v/1e6).toFixed(1).replace(/\.0$/,"")+"M":Math.abs(v)>=1e3?"$"+(v/1e3).toFixed(Math.abs(v)<1e4?1:0).replace(/\.0$/,"")+"k":"$"+Math.round(v);
+const scrollChat=()=>{if(ui.tab==="ask")requestAnimationFrame(()=>window.scrollTo(0,document.body.scrollHeight))};
+const fmtMsg=s=>esc(s).replace(/\*\*(.+?)\*\*/g,"<b>$1</b>").replace(/\n/g,"<br>");
+
+function viewAsk(){
+  let h=topbar("Ask",chat.msgs.length?`<button class="btn sm" data-action="ask-new">New chat</button>`:"")+`<div class="stack chat">`;
+  if(!aiKey())h+=`<div class="banner"><div class="grow"><strong>Add your Anthropic API key</strong> to use the assistant. It stays on this phone.</div><button class="btn sm" data-tab="settings">Add</button></div>`;
+  if(!chat.msgs.length)h+=`<div class="card"><div class="label">Ask about your money</div><p class="small ink2" style="margin:6px 0 12px">Spending, bills, savings and what-ifs. It only answers questions about your own finances.</p>
+    <div class="chips">${AI_SUGGEST.map(s=>`<button class="chip" data-action="ask-opt" data-v="${esc(s)}">${esc(s)}</button>`).join("")}</div></div>`;
+  chat.msgs.forEach((m,i)=>{h+=`<div class="msg ${m.role==="user"?"me":"bot"}${m.error?" err":""}">${fmtMsg(m.text)}</div>`;
+    if(m.options&&m.options.length&&i===chat.msgs.length-1&&!chat.busy)h+=`<div class="chips">${m.options.map(o=>`<button class="chip" data-action="ask-opt" data-v="${esc(o)}">${esc(o)}</button>`).join("")}</div>`});
+  if(chat.busy)h+=`<div class="msg bot typing" aria-label="Thinking"><i></i><i></i><i></i></div>`;
+  return h+`</div><form class="composer" id="askf"><textarea id="askin" rows="1" placeholder="Ask about your money…" maxlength="500" aria-label="Question" ${chat.busy?"disabled":""}>${esc(chat.draft)}</textarea><button class="sendbtn" type="submit" aria-label="Send" ${chat.busy?"disabled":""}>${ICON.send}</button></form>`;
+}
 
 /* ---------- Savings history (before the app) ---------- */
 function viewSavings(){
@@ -580,7 +670,8 @@ function viewSettings(){
   let h=topbar("Settings","")+`<div class="stack"><div class="card stack">
     <div class="field"><label for="payMonthly">Monthly take-home pay</label><input id="payMonthly" inputmode="decimal" data-setting="payMonthly" value="${st.payMonthly||""}" placeholder="8,500"></div>
     <div class="field"><label for="target">Save every month</label><input id="target" inputmode="decimal" data-setting="target" value="${st.target||""}" placeholder="4,000"></div>
-    <div class="field"><label for="apy">Interest on savings (% per year)</label><input id="apy" inputmode="decimal" data-setting="apy" value="${st.apy||""}" placeholder="0"><span class="hint">Only for the forecast. High-yield savings accounts pay around 3–4%.</span></div></div>
+    <div class="field"><label for="apy">Interest on savings (% per year)</label><input id="apy" inputmode="decimal" data-setting="apy" value="${st.apy||""}" placeholder="0"><span class="hint">Used by Ask for projections. High-yield savings accounts pay around 3–4%.</span></div></div>
+    <div class="card"><div class="field"><label for="aiKey">Anthropic API key (for Ask)</label><input id="aiKey" type="password" autocomplete="off" spellcheck="false" data-aikey value="${esc(aiKey())}" placeholder="sk-ant-…"><span class="hint">Stays on this phone and isn't included in backups. Get one at console.anthropic.com. Each question costs well under a cent.</span></div></div>
     <div class="list">
     <button class="row" data-tab="bills"><span class="grow"><div class="t">Bills</div><div class="s">${S.bills.length} bill${S.bills.length===1?"":"s"} · ${money(billsMonthTotal(curYM()))}/month</div></span>${chev}</button>
     <button class="row" data-tab="savings"><span class="grow"><div class="t">Savings history</div><div class="s">What you'd saved before using the app</div></span>${chev}</button>
@@ -774,7 +865,8 @@ document.addEventListener("click",e=>{
     case "ask-bill":askBill(id);break;
     case "edit-cats":catsSheet();break;
     case "fix-balance":fixBalanceSheet();break;
-    case "horizon":ui.horizon=+a.dataset.v;render();break;
+    case "ask-opt":aiSend(a.dataset.v);break;
+    case "ask-new":chat={msgs:[],asks:0,busy:false,draft:""};render();break;
     case "pay":paySheet();break;
     case "hist-done":S.settings.histSet=true;ui.tab="home";commit("Savings history saved");window.scrollTo(0,0);break;
     case "month":ui.month=shiftYM(ui.month,+a.dataset.k);render();break;
@@ -788,11 +880,14 @@ document.addEventListener("click",e=>{
 });
 document.addEventListener("change",e=>{const hm=e.target.dataset&&e.target.dataset.hist;
   if(hm){S.history=S.history||{};const raw=String(e.target.value).replace(/[$,\s]/g,"");if(raw==="")delete S.history[hm];else S.history[hm]=parseFloat(raw)||0;S.settings.histSet=true;save();render();return}
+  if(e.target.id==="aiKey"){const v=e.target.value.trim();try{v?localStorage.setItem(AI_KEY,v):localStorage.removeItem(AI_KEY)}catch(err){}toast(v?"API key saved":"API key removed");return}
   const k=e.target.dataset&&e.target.dataset.setting;if(!k)return;let v=e.target.value;
-  if(k==="fcSpend"&&String(v).trim()===""){delete S.settings.fcSpend;save();render();return}
   if(k!=="payFreq"&&k!=="jobStart")v=parseFloat(String(v).replace(/[$,%\s]/g,""))||0;S.settings[k]=v;if(k==="openingTotal")S.settings.histSet=true;
   save();render();toast("Saved")});
-document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("#sheet").hidden)closeSheet()});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("#sheet").hidden)closeSheet();
+  if(e.target.id==="askin"&&e.key==="Enter"&&!e.shiftKey&&!e.isComposing){e.preventDefault();aiSend(e.target.value)}});
+document.addEventListener("input",e=>{if(e.target.id==="askin"){chat.draft=e.target.value;e.target.style.height="auto";e.target.style.height=e.target.scrollHeight+"px"}});
+document.addEventListener("submit",e=>{if(e.target.id==="askf"){e.preventDefault();aiSend($("#askin").value)}});
 
 S=load();applyTheme();render();setTimeout(maybePrompt,500);
 if(S.settings.pin)showLock();
