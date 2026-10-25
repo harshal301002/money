@@ -263,6 +263,11 @@ textarea{width:100%;min-height:120px;border-radius:12px;border:1px solid var(--l
 .msg.me{align-self:flex-end;background:var(--accent);color:var(--accent-ink);border-bottom-right-radius:6px}
 .msg.bot{align-self:flex-start;background:var(--surface);box-shadow:var(--shadow);border-bottom-left-radius:6px}
 .msg.err{background:var(--bad-soft);color:var(--bad);box-shadow:none}
+.msg p{margin:0}.msg p+p,.msg p+ul,.msg p+ol,.msg ul+p,.msg ol+p{margin-top:8px}
+.msg .lead{font-weight:600;font-size:16px;line-height:1.4}
+.msg ul,.msg ol{margin:8px 0 0;padding-left:18px}.msg li{margin:3px 0}.msg li::marker{color:var(--accent)}
+.msg .fine{margin-top:8px;padding-top:8px;border-top:1px solid var(--line);font-size:12.5px;color:var(--muted)}
+.msg.bot .num{font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--accent)}
 .chat > .chips{align-self:flex-start;margin-top:-6px}
 .typing{display:flex;gap:4px;padding:14px 16px}
 .typing i{width:7px;height:7px;border-radius:50%;background:var(--muted);animation:blink 1.2s infinite}
@@ -543,6 +548,10 @@ const aiKey=()=>{try{return localStorage.getItem(AI_KEY)||""}catch(e){return ""}
 const AI_URL="harshal-money-ai-url",AI_LMODEL="harshal-money-ai-lmodel",LOCAL_DEFAULT="hf.co/Mungert/Fin-R1-GGUF:Q4_K_M";
 const lsGet=k=>{try{return localStorage.getItem(k)||""}catch(e){return ""}};
 const aiUrl=()=>lsGet(AI_URL).replace(/\/+$/,""),aiLModel=()=>lsGet(AI_LMODEL)||LOCAL_DEFAULT,aiReady=()=>!!(aiUrl()||aiKey());
+function aiClean(t){
+  return String(t||"").replace(/<think>[\s\S]*?<\/think>/gi,"").replace(/^[\s\S]*<\/think>/i,"").replace(/<\/?answer>/gi,"")
+    .replace(/\\boxed\{([^{}]*)\}/g,"$1").replace(/\\text\{([^{}]*)\}/g,"$1").replace(/\\times/g,"×").replace(/\\\$/g,"$").replace(/\\[()[\]]/g,"")
+    .replace(/^\s*#+\s*/gm,"").replace(/^\s*(?:final\s+)?answer\s*:?\s*$/gim,"").replace(/^\s*(?:final\s+)?answer\s*:\s*/i,"").replace(/^\s*[*•]\s+/gm,"- ").replace(/\n{3,}/g,"\n\n").trim()}
 async function aiLocal(messages){
   const ctl=new AbortController(),timer=setTimeout(()=>ctl.abort(),150000);
   try{
@@ -550,7 +559,7 @@ async function aiLocal(messages){
       body:JSON.stringify({model:aiLModel(),stream:false,messages:[{role:"system",content:AI_RULES},...messages],options:{num_predict:1500,temperature:0.2}})});
     const out=await res.json().catch(()=>({}));
     if(!res.ok)throw new Error(res.status===404?`Your laptop doesn't have the model "${aiLModel()}". Check the model name in Settings.`:(out.error||"Your laptop's AI returned an error."));
-    return String((out.message&&out.message.content)||"").replace(/<think>[\s\S]*?<\/think>/gi,"").replace(/^[\s\S]*<\/think>/i,"").trim();
+    return String((out.message&&out.message.content)||"");
   }catch(e){
     if(e.name==="AbortError")throw new Error("Your laptop took too long to answer. Try again.");
     if(e instanceof TypeError)throw new Error("Couldn't reach your laptop. Is it on, running Start.bat, and is Tailscale connected on this phone?");
@@ -559,11 +568,42 @@ async function aiLocal(messages){
 }
 const AI_SUGGEST=["Where did most of my money go this month?","Will I hit my savings goal this month?","Can I afford a $1,500 trip in December?","How does this month compare to last month?"];
 let chat={msgs:[],asks:0,busy:false,draft:""};
-const AI_RULES=`You answer questions about the user's own finances inside their money app, using only the DATA given with the question. Amounts are USD.
-Reply in exactly one of these forms:
-INVALID  (when it is not a question about the user's own finances)
-ASK: <one short clarifying question> || <short option> || <short option>  (only when a missing detail would really change the answer, e.g. what-ifs about the future or an unclear time period; at most 3 per thread)
-Otherwise just the answer: plain, friendly, under 100 words, whole dollars, brief math if useful, one line of assumptions. If DATA doesn't cover it, say so. Never invent numbers. No specific stock picks.`;
+const AI_RULES=`You are the assistant inside the user's personal money app. Answer questions about the user's own finances using ONLY the numbers in DATA. Amounts are USD. Always reply in English.
+
+Reply in exactly one of these three forms, with nothing before it:
+
+1) INVALID
+   (the message is not about the user's own money)
+
+2) ASK: <one short question> || <short option> || <short option>
+   (only when a missing detail would really change the answer, like an unclear time period or a what-if amount or date; at most 3 per thread; never ask for something DATA already shows)
+
+3) An answer, laid out exactly like this:
+**<one sentence: the direct answer with the key number>**
+- <supporting number or one step of math>
+- <supporting number or a practical next step>
+Assumes: <one short line, only if you assumed something>
+
+Answer rules:
+- Lead with the verdict (yes, no, on track, behind, or the amount). Don't repeat the question or say "based on the data".
+- 2 to 4 bullets. Under 90 words in total.
+- Use only numbers from DATA, or simple math on them. Show math compactly, e.g. $8,500 − $2,564 − $1,900 = $4,036. Never invent numbers.
+- Money as whole dollars with $ and commas ($4,036). Say month names (October), not 2026-10.
+- Relate it to the monthly savings goal when that's relevant.
+- If DATA doesn't cover it, say what's missing and that they can add it in the app.
+- Plain text plus **bold** and "- " bullets only: no headings, tables, LaTeX, code or emojis. No specific stock picks.
+
+Example 1
+QUESTION: Will I hit my savings goal this month?
+(DATA: goal 4000/month; day 12 of 31; saved 1450 so far; on pace to save 3800)
+**Not quite: you're on pace to save $3,800, about $200 short of your $4,000 goal.**
+- Saved so far: $1,450 by day 12 of 31
+- Spending about $11 less per day for the rest of the month closes the gap
+Assumes: you keep spending at this month's pace.
+
+Example 2
+QUESTION: Can I afford a trip?
+ASK: How much will the trip cost, and when? || About $1,000 next month || About $2,500 in 3 months`;
 
 const FIN_RE=/\$|\b(money|spen[dt]|spending|sav(e|ed|es|ing|ings)|goals?|budget\w*|bills?|rent|pa(y|id)|paycheck|income|salary|earn\w*|afford\w*|cost\w*|expens\w*|buy|bought|purchas\w*|transactions?|charge[ds]?|card|cash|dollars?|owe|debt|invest\w*|interest|financ\w*|balance|account|cheap\w*|price\w*|subscriptions?|net worth|emergency fund|broke|splurge\w*|refunds?|on track|compare\w*|this month|last month|how am i doing)\b/i;
 const CAT_SYN={groceries:/grocer|supermarket|trader joe|whole foods|safeway|qfc|costco|\bfood/,eating:/eating|restaurant|dinner|lunch|breakfast|coffee|takeout|\bfood|pizza/,transport:/transport|uber|lyft|\bgas\b|fuel|parking|\bbus\b|train|orca|commute/,
@@ -635,10 +675,11 @@ async function aiSend(text){
     else{
     const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",
       headers:{"content-type":"application/json","x-api-key":aiKey(),"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
-      body:JSON.stringify({model:AI_MODEL,max_tokens:300,system:AI_RULES,messages})});
+      body:JSON.stringify({model:AI_MODEL,max_tokens:400,system:AI_RULES,messages})});
     const out=await res.json().catch(()=>({}));
     if(!res.ok)throw new Error(res.status===401?"That API key didn't work. Check it in Settings.":res.status===429?"Too many requests. Try again in a minute.":(out.error&&out.error.message)||"Something went wrong. Try again.");
-    raw=(out.content||[]).map(c=>c.text||"").join("").trim();}
+    raw=(out.content||[]).map(c=>c.text||"").join("");}
+    raw=aiClean(raw);
     if(/^INVALID\b/i.test(raw)){u.invalid=true;chat.msgs.push({role:"assistant",text:INVALID,invalid:true})}
     else if(/^ASK:/i.test(raw)&&chat.asks<MAX_ASKS){const[q,...opts]=raw.slice(4).split("||").map(s=>s.trim()).filter(Boolean);
       chat.msgs.push({role:"assistant",kind:"ask",text:q||raw,options:opts.slice(0,4)});chat.asks++}
@@ -647,14 +688,25 @@ async function aiSend(text){
   chat.busy=false;render();scrollChat();
 }
 const scrollChat=()=>{if(ui.tab==="ask")requestAnimationFrame(()=>window.scrollTo(0,document.body.scrollHeight))};
-const fmtMsg=s=>esc(s).replace(/\*\*(.+?)\*\*/g,"<b>$1</b>").replace(/\n/g,"<br>");
+const fmtMsg=s=>esc(s).replace(/\n/g,"<br>");
+const mdInline=s=>s.replace(/\*\*(.+?)\*\*/g,"<b>$1</b>").replace(/(^|[^\w])(-?\$\d[\d,]*(?:\.\d+)?)/g,'$1<span class="num">$2</span>');
+function mdLite(text,lead){
+  const out=[];let cur=null,first=true;
+  esc(text).split("\n").map(l=>l.trim()).filter(Boolean).forEach(l=>{
+    const b=l.match(/^[-–]\s+(.*)/),n=l.match(/^\d+[.)]\s+(.*)/);
+    if(b||n){const t=b?"ul":"ol";if(!cur||cur.t!==t){cur={t,items:[]};out.push(cur)}cur.items.push(mdInline((b||n)[1]));return}
+    cur=null;
+    if(/^(assum\w*|note)\s*:/i.test(l))out.push({fine:mdInline(l)});
+    else{out.push({p:mdInline(l),lead:lead&&first});}
+    first=false});
+  return out.map(x=>x.t?`<${x.t}>${x.items.map(i=>`<li>${i}</li>`).join("")}</${x.t}>`:x.fine?`<div class="fine">${x.fine}</div>`:`<p${x.lead?' class="lead"':""}>${x.p}</p>`).join("")}
 
 function viewAsk(){
   let h=topbar("Ask",chat.msgs.length?`<button class="btn sm" data-action="ask-new">New chat</button>`:"")+`<div class="stack chat">`;
   if(!aiReady())h+=`<div class="banner"><div class="grow"><strong>Connect an assistant</strong>: your laptop's address or an Anthropic API key. Both stay on this phone.</div><button class="btn sm" data-tab="settings">Add</button></div>`;
   if(!chat.msgs.length)h+=`<div class="card"><div class="label">Ask about your money</div><p class="small ink2" style="margin:6px 0 12px">Spending, bills, savings and what-ifs. It only answers questions about your own finances.</p>
     <div class="chips">${AI_SUGGEST.map(s=>`<button class="chip" data-action="ask-opt" data-v="${esc(s)}">${esc(s)}</button>`).join("")}</div></div>`;
-  chat.msgs.forEach((m,i)=>{h+=`<div class="msg ${m.role==="user"?"me":"bot"}${m.error?" err":""}">${fmtMsg(m.text)}</div>`;
+  chat.msgs.forEach((m,i)=>{h+=`<div class="msg ${m.role==="user"?"me":"bot"}${m.error?" err":""}">${m.role==="user"||m.error||m.invalid?fmtMsg(m.text):mdLite(m.text,m.kind==="answer")}</div>`;
     if(m.options&&m.options.length&&i===chat.msgs.length-1&&!chat.busy)h+=`<div class="chips">${m.options.map(o=>`<button class="chip" data-action="ask-opt" data-v="${esc(o)}">${esc(o)}</button>`).join("")}</div>`});
   if(chat.busy)h+=`<div class="msg bot typing" aria-label="Thinking"><i></i><i></i><i></i></div>`;
   return h+`</div><form class="composer" id="askf"><textarea id="askin" rows="1" placeholder="Ask about your money…" maxlength="500" aria-label="Question" ${chat.busy?"disabled":""}>${esc(chat.draft)}</textarea><button class="sendbtn" type="submit" aria-label="Send" ${chat.busy?"disabled":""}>${ICON.send}</button></form>`;
