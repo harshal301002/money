@@ -539,6 +539,24 @@ function avgSpend(){const out=[];for(let ym=shiftYM(curYM(),-1);out.length<3&&ym
    Off-topic questions are rejected here without calling the API. By default only savings numbers are sent. */
 const AI_KEY="harshal-money-ai-key",AI_MODEL="claude-haiku-5-5",MAX_ASKS=3,INVALID="Please enter a valid question.";
 const aiKey=()=>{try{return localStorage.getItem(AI_KEY)||""}catch(e){return ""}};
+/* Optional: your own laptop running Ollama, reached privately over Tailscale. When an address is set, Ask uses it instead of Claude. */
+const AI_URL="harshal-money-ai-url",AI_LMODEL="harshal-money-ai-lmodel",LOCAL_DEFAULT="hf.co/Mungert/Fin-R1-GGUF:Q4_K_M";
+const lsGet=k=>{try{return localStorage.getItem(k)||""}catch(e){return ""}};
+const aiUrl=()=>lsGet(AI_URL).replace(/\/+$/,""),aiLModel=()=>lsGet(AI_LMODEL)||LOCAL_DEFAULT,aiReady=()=>!!(aiUrl()||aiKey());
+async function aiLocal(messages){
+  const ctl=new AbortController(),timer=setTimeout(()=>ctl.abort(),150000);
+  try{
+    const res=await fetch(aiUrl()+"/api/chat",{method:"POST",signal:ctl.signal,headers:{"content-type":"application/json"},
+      body:JSON.stringify({model:aiLModel(),stream:false,messages:[{role:"system",content:AI_RULES},...messages],options:{num_predict:1500,temperature:0.2}})});
+    const out=await res.json().catch(()=>({}));
+    if(!res.ok)throw new Error(res.status===404?`Your laptop doesn't have the model "${aiLModel()}". Check the model name in Settings.`:(out.error||"Your laptop's AI returned an error."));
+    return String((out.message&&out.message.content)||"").replace(/<think>[\s\S]*?<\/think>/gi,"").replace(/^[\s\S]*<\/think>/i,"").trim();
+  }catch(e){
+    if(e.name==="AbortError")throw new Error("Your laptop took too long to answer. Try again.");
+    if(e instanceof TypeError)throw new Error("Couldn't reach your laptop. Is it on, running Start.bat, and is Tailscale connected on this phone?");
+    throw e;
+  }finally{clearTimeout(timer)}
+}
 const AI_SUGGEST=["Where did most of my money go this month?","Will I hit my savings goal this month?","Can I afford a $1,500 trip in December?","How does this month compare to last month?"];
 let chat={msgs:[],asks:0,busy:false,draft:""};
 const AI_RULES=`You answer questions about the user's own finances inside their money app, using only the DATA given with the question. Amounts are USD.
@@ -606,18 +624,21 @@ async function aiSend(text){
   text=String(text||"").trim();if(!text||chat.busy)return;
   const u={role:"user",text};chat.msgs.push(u);chat.draft="";
   if(!chat.asks&&!isFinanceQ(text.toLowerCase())){u.invalid=true;chat.msgs.push({role:"assistant",text:INVALID,invalid:true});render();scrollChat();return}
-  if(!aiKey()){chat.msgs.pop();toast("Add your API key in Settings first");render();return}
+  if(!aiReady()){chat.msgs.pop();toast("Add your laptop address or API key in Settings first");render();return}
   chat.busy=true;render();scrollChat();
   try{
     const th=aiThread(),data=aiRetrieve(th.filter(m=>m.role==="user").map(m=>m.text).join(" "));
     const note=chat.asks?`\n(Clarifying questions asked: ${chat.asks} of ${MAX_ASKS}.${chat.asks>=MAX_ASKS?" Answer now.":""})`:"";
     const messages=th.map((m,i)=>({role:m.role,content:i===th.length-1?`DATA:\n${data}\n\nQUESTION: ${m.text}${note}`:m.text}));
+    let raw;
+    if(aiUrl())raw=await aiLocal(messages);
+    else{
     const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",
       headers:{"content-type":"application/json","x-api-key":aiKey(),"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
       body:JSON.stringify({model:AI_MODEL,max_tokens:300,system:AI_RULES,messages})});
     const out=await res.json().catch(()=>({}));
     if(!res.ok)throw new Error(res.status===401?"That API key didn't work. Check it in Settings.":res.status===429?"Too many requests. Try again in a minute.":(out.error&&out.error.message)||"Something went wrong. Try again.");
-    const raw=(out.content||[]).map(c=>c.text||"").join("").trim();
+    raw=(out.content||[]).map(c=>c.text||"").join("").trim();}
     if(/^INVALID\b/i.test(raw)){u.invalid=true;chat.msgs.push({role:"assistant",text:INVALID,invalid:true})}
     else if(/^ASK:/i.test(raw)&&chat.asks<MAX_ASKS){const[q,...opts]=raw.slice(4).split("||").map(s=>s.trim()).filter(Boolean);
       chat.msgs.push({role:"assistant",kind:"ask",text:q||raw,options:opts.slice(0,4)});chat.asks++}
@@ -630,7 +651,7 @@ const fmtMsg=s=>esc(s).replace(/\*\*(.+?)\*\*/g,"<b>$1</b>").replace(/\n/g,"<br>
 
 function viewAsk(){
   let h=topbar("Ask",chat.msgs.length?`<button class="btn sm" data-action="ask-new">New chat</button>`:"")+`<div class="stack chat">`;
-  if(!aiKey())h+=`<div class="banner"><div class="grow"><strong>Add your Anthropic API key</strong> to use the assistant. It stays on this phone.</div><button class="btn sm" data-tab="settings">Add</button></div>`;
+  if(!aiReady())h+=`<div class="banner"><div class="grow"><strong>Connect an assistant</strong>: your laptop's address or an Anthropic API key. Both stay on this phone.</div><button class="btn sm" data-tab="settings">Add</button></div>`;
   if(!chat.msgs.length)h+=`<div class="card"><div class="label">Ask about your money</div><p class="small ink2" style="margin:6px 0 12px">Spending, bills, savings and what-ifs. It only answers questions about your own finances.</p>
     <div class="chips">${AI_SUGGEST.map(s=>`<button class="chip" data-action="ask-opt" data-v="${esc(s)}">${esc(s)}</button>`).join("")}</div></div>`;
   chat.msgs.forEach((m,i)=>{h+=`<div class="msg ${m.role==="user"?"me":"bot"}${m.error?" err":""}">${fmtMsg(m.text)}</div>`;
@@ -672,6 +693,8 @@ function viewSettings(){
     <div class="field"><label for="target">Save every month</label><input id="target" inputmode="decimal" data-setting="target" value="${st.target||""}" placeholder="4,000"></div>
     <div class="field"><label for="apy">Interest on savings (% per year)</label><input id="apy" inputmode="decimal" data-setting="apy" value="${st.apy||""}" placeholder="0"><span class="hint">Used by Ask for projections. High-yield savings accounts pay around 3–4%.</span></div></div>
     <div class="card"><div class="field"><label for="aiKey">Anthropic API key (for Ask)</label><input id="aiKey" type="password" autocomplete="off" spellcheck="false" data-aikey value="${esc(aiKey())}" placeholder="sk-ant-…"><span class="hint">Stays on this phone and isn't included in backups. Get one at console.anthropic.com. Each question costs well under a cent.</span></div></div>
+    <div class="card stack"><div class="field"><label for="aiUrl">Laptop AI address (for Ask)</label><input id="aiUrl" type="url" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" value="${esc(aiUrl())}" placeholder="https://laptop.tailxxxx.ts.net"><span class="hint">Your laptop running Ollama, over Tailscale. When set, Ask uses it instead of Claude and your data never leaves your devices. Answers take 10–60 seconds.</span></div>
+    <div class="field"><label for="aiLModel">Laptop model</label><input id="aiLModel" autocomplete="off" autocapitalize="off" spellcheck="false" value="${esc(lsGet(AI_LMODEL))}" placeholder="${esc(LOCAL_DEFAULT)}"></div></div>
     <div class="list">
     <button class="row" data-tab="bills"><span class="grow"><div class="t">Bills</div><div class="s">${S.bills.length} bill${S.bills.length===1?"":"s"} · ${money(billsMonthTotal(curYM()))}/month</div></span>${chev}</button>
     <button class="row" data-tab="savings"><span class="grow"><div class="t">Savings history</div><div class="s">What you'd saved before using the app</div></span>${chev}</button>
@@ -880,6 +903,9 @@ document.addEventListener("click",e=>{
 });
 document.addEventListener("change",e=>{const hm=e.target.dataset&&e.target.dataset.hist;
   if(hm){S.history=S.history||{};const raw=String(e.target.value).replace(/[$,\s]/g,"");if(raw==="")delete S.history[hm];else S.history[hm]=parseFloat(raw)||0;S.settings.histSet=true;save();render();return}
+  if(e.target.id==="aiUrl"||e.target.id==="aiLModel"){const k=e.target.id==="aiUrl"?AI_URL:AI_LMODEL;let v=e.target.value.trim();
+    if(k===AI_URL&&v&&!/^https:\/\//i.test(v)){toast("Use the https:// address from Tailscale");return}
+    try{v?localStorage.setItem(k,v):localStorage.removeItem(k)}catch(err){}toast(k===AI_URL?(v?"Laptop address saved":"Laptop address removed"):"Saved");render();return}
   if(e.target.id==="aiKey"){const v=e.target.value.trim();try{v?localStorage.setItem(AI_KEY,v):localStorage.removeItem(AI_KEY)}catch(err){}toast(v?"API key saved":"API key removed");return}
   const k=e.target.dataset&&e.target.dataset.setting;if(!k)return;let v=e.target.value;
   if(k!=="payFreq"&&k!=="jobStart")v=parseFloat(String(v).replace(/[$,%\s]/g,""))||0;S.settings[k]=v;if(k==="openingTotal")S.settings.histSet=true;
